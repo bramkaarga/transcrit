@@ -453,79 +453,7 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
     
     ax.axis('off')
 		
-def plot_network_multimodal_old(gdf, gdf2, colname,betweenness_string, cmaps, maxvals=[0,0],
-                            linewidth=1.25, edgecolor='grey', perc1=60, perc2=90,
-                            modes=['road', 'water']):
-							
-	'''
-    deprecated, still kept here for maintaining the old version
-	'''
-    fig, ax = plt.subplots(figsize=(12,9))
 
-    ax.set_aspect('equal')
-
-    cmap_pos = [0.72, 0.45, 0.02, 0.43]
-    
-    ax.set_title(colname)
-    
-    gdf3 = gdf2.copy()
-    gdf3.sort_values(by='mode', inplace=True)
-
-    for i, mode in enumerate(modes):
-        
-        gdf_mode = gdf3.loc[gdf3['mode']==mode]
-
-        valmin1 = min(list(gdf_mode[betweenness_string]))
-        valmax1 = max(list(gdf_mode[betweenness_string]))
-        
-        try:
-            thres1 = _get_percentile(gdf_mode, betweenness_string, perc1)
-            thres2 = _get_percentile(gdf_mode, betweenness_string, perc2)
-        except:
-            thres1 = 99999
-            thres2 = 999999
-
-        gdf_mode.plot(ax=ax, column=betweenness_string, cmap=cmaps[i], vmin=valmin1, vmax=valmax1, linewidth=linewidth)
-        
-        #add colorbar2
-        fig = ax.get_figure()
-        axes_pos = cmap_pos
-        axes_pos[0] = axes_pos[0] + (0.1*i)
-        cax = fig.add_axes(axes_pos)
-        sm = plt.cm.ScalarMappable(cmap=cmaps[i])
-        columnlist = list(gdf_mode[betweenness_string])
-        maxbetweenness = max(columnlist)
-        try:
-            columnlist.append(maxvals[i])
-        except:
-            columnlist.append(maxbetweenness)
-        cbmin, cbmax = min(columnlist), max(columnlist)
-        sm.set_array(columnlist)
-        cb = plt.colorbar(sm, cax=cax, label=betweenness_string)
-        poin1 = cbmin+(cbmax-cbmin)/4
-        poin2 = cbmin+(cbmax-cbmin)/4*2
-        poin3 = cbmin+(cbmax-cbmin)/4*3
-        labels = [cbmin, poin1, poin2, poin3, cbmax]
-        loc = labels
-        cb.set_ticks(loc)
-        cb.set_ticklabels(labels)
-        cb.ax.tick_params(labelsize=16)
-        
-    for i, mode in enumerate(modes):
-        #adjust linewidth based on betweenness
-        betweenness_list = list(gdf3[betweenness_string])
-        #change the linewidth based on the percentile
-        betweenness_list = [1 if x < thres1 else 2 if x >= thres1 and x < thres2 else 3 for x in betweenness_list]
-        j = 0
-        for ln in ax.lines:
-            ln.set_linewidth(betweenness_list[j]*1)
-            j +=1
-        
-    valmin2 = min(list(gdf[colname]))
-    valmax2 = max(list(gdf[colname]))
-    gdf.plot(ax=ax, column=colname, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, edgecolor=edgecolor, alpha=0.3)
-    
-    ax.axis('off')
 	
 def plot_interactive(rank, metric, show_division, result_gdf, cmaps, district_gdf):
     
