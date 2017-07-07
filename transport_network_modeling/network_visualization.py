@@ -377,7 +377,7 @@ def plot_od_heatmap(OD_df, gdf_points, log=False, logn=100, division=False):
         t.tick1On = False
         t.tick2On = False
 
-def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxvals=[0,0],
+def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxvals=[0,0], minvals=[],
                             linewidth=1.25, edgecolor='grey', perc1=60, perc2=90,
                             modes=['road', 'water']):
     
@@ -415,6 +415,10 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
             columnlist.append(maxvals[i])
         except:
             columnlist.append(maxbetweenness)
+        try:
+            columnlist.append(minvals[i])
+        except:
+            pass
         cbmin, cbmax = min(columnlist), max(columnlist)
         sm.set_array(columnlist)
         cb = plt.colorbar(sm, cax=cax, label=betweenness_string)
@@ -475,7 +479,8 @@ def plot_interactive(rank, metric, show_division, result_gdf, cmaps, district_gd
                     'm8_02' : 'Weighted link betweenness centrality', 
                     'm8_03' : 'Volume over capacity', 
                     'm9_01' : 'Unsatisfied demand', 
-                    'm10' : 'Exposure to disaster'}
+                    'm10' : 'Exposure to disaster', 
+                    'wa_crit' : 'Weighted average criticality score'}
     
     print(str(rank) + ' top links are highlighted from metric ' + metric + ' (' + metric_names[metric] + ')')
     linewidth=1.25

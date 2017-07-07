@@ -10,7 +10,7 @@ from shapely.geometry import LineString, Point
 
 from osmnx_simplify_overwrite import simplify_graph as simp_g
 
-from weighted_betweenness import probit_assignment
+from criticality import probit_assignment
 
 def prepare_centroids_network2(centroid, network):
     '''
