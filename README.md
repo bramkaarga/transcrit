@@ -8,6 +8,15 @@ Still under construction....
 
 ## Index
 
+### criticality_results
+The results of the eighteen criticality metrics for Bangladesh's multimodal freight transport network are stored in this folder.
+
+### model_input_data
+The raw input data for the model is stored in this folder. The raw data consists of shapefiles of Bangladesh's transport network and the socioeconomic profiles of districts in Bangladesh.
+
+### transport_network_modeling
+This folder contains Python codes of the transport network criticality library developed in this study. 
+
 ### 01_example_metric_calculation.ipynb
 This workbook provides several examples of the use of the transport_network_modeling library.
 
