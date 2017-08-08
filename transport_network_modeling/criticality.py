@@ -1,3 +1,10 @@
+###################################################################################################
+# Module: criticality.py
+# Description: Network assignments of a transport model and other criticality metrics calculation
+# Author: Bramka Arga Jafino
+# Web: https://github.com/bramkaarga/transcrit
+###################################################################################################
+
 from __future__ import division
 from matplotlib import pyplot as plt
 import matplotlib.colors as colors
@@ -5,10 +12,15 @@ from matplotlib.pylab import *
 from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from heapq import heappush, heappop
 from itertools import count
+from scipy.stats.stats import pearsonr
+from scipy.stats import spearmanr, ks_2samp
+from astropy.stats import median_absolute_deviation
 
 import os
 import pandas as pd
 import numpy as np
+from numpy import std
+import copy
 
 import networkx as nx
 import geopandas as gp
@@ -28,7 +40,16 @@ __all__ = ['aon_assignment',
            'ksp_edge_betweenness_subset_od',
            'sp_dict_graph_creation',
            'interdiction_single_edge',
-           'min_edge_cut']
+           'min_edge_cut',
+           'interdiction_m1',
+           'interdiction_m2',
+           'interdiction_m6',
+           'interdiction_user_exposure',
+           'interdiction_m3_02',
+           'metric_m5_01',
+           'correlate_metrics_pearson',
+           'correlate_metrics_spearman',
+           'correlate_metrics_ks']
 
 def aon_assignment(G, sources, targets, weight, od):
     '''
@@ -239,6 +260,13 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
             d1.update({key:val})
 
     return d1
+
+def correlate_metric_spearman(df, m_a, m_b):
+
+    df2 = df[df[m_a] + df[m_b] != 0]
+    r, p = spearmanr(df2[m_a], df2[m_b])
+
+    return r, p, len(df2)
 
 def edge_betweenness_centrality(flow, od):
     '''
@@ -815,12 +843,6 @@ def min_edge_cut(G, centroid_nodes):
 
     return edgecut_dict
 
-'''
-
-All things below this line is for Bramka Arga Jafino's Master Thesis
-
-'''
-
 # Metrics M1: Change in unewighted daily accessibility and
 # change in number of nodes accessible within daily reach
 
@@ -1360,6 +1382,8 @@ def _user_exposure(G_new, centroid, target, weight, od, sp_cost_dict):
 
     return exposure
 
+# Metrics M7_02 and M7_03
+
 def interdiction_user_exposure(G2, centroids, weight, od):
     '''
     Function to calculate metric m7_02 (Change in expected user exposure) and
@@ -1478,7 +1502,9 @@ def _average_shortest_path_length2(G, weight='length'):
                     graph = subgraph
         dist = nx.average_shortest_path_length(G=graph, weight=weight)
     return dist
-	
+
+# Metric M3_02
+
 def interdiction_m3_02(row, div_graph_dict, div_init_avrgdist_dict, weight='length'):
     
     #get the division
@@ -1579,8 +1605,10 @@ def _distinct_path_all_pairs(G, centroids, weight, cutoff=3):
                 print(str(len(ksp)) + ' od pairs has been calculated')
                 
     return ksp
-	
-def m5_01(gdf, line, cutoff):
+
+# Metric M5_01
+
+def metric_m5_01(gdf, line, cutoff):
     
     gdf2 = gdf.copy()
     
@@ -1603,4 +1631,158 @@ def m5_01(gdf, line, cutoff):
         redundancy = 0
     
     return redundancy
-	
+
+# Correlation coefficient analysis for metrics comparison
+
+def correlate_metrics_pearson(df, m_a, m_b):
+    df2 = df[df[m_a] + df[m_b] != 0]
+    df2 = df.copy()
+    r, p = pearsonr(df2[m_a], df2[m_b])
+
+    return r, p, len(df2)
+
+def correlate_metrics_spearman(df, m_a, m_b):
+
+    df2 = df[df[m_a] + df[m_b] != 0]
+    df2 = df.copy()
+    r, p = spearmanr(df2[m_a], df2[m_b])
+
+    return r, p, len(df2)
+
+def correlate_metrics_ks(df, m_a, m_b):
+
+    df2 = df[df[m_a] + df[m_b] != 0]
+    df2 = df.copy()
+    D, p = ks_2samp(df2[m_a], df2[m_b])
+
+    return D, p
+
+# Functions for metrics robustness analysis
+
+def rank_robustness(df, all_metrics):
+    #create dataframe per replication
+    all_df = []
+    for i, num in enumerate(list(set(list(df['rep'])))):
+        exec("rep_{}_df = df.loc[df['rep']==i]".format(i))
+        exec("all_df.append(rep_{}_df)".format(i))
+
+    #calculate Spearman rank correlation coefficient between each replication
+    spearman_names = []
+    spearman_dfs = []
+    for metric in all_metrics:
+        c = metric
+        exec("{}_spearman_df = _spearman_ks_all_rep(all_df, rep_0_df, metric)".format(metric))
+        exec("spearman_dfs.append({}_spearman_df)".format(metric))
+        spearman_names.append(metric)
+        print("{}_spearman_df has been created".format(metric))
+
+    spearmans_dict = dict(zip(spearman_names, spearman_dfs))
+    return spearmans_dict
+
+def dist_robustness(df, all_metrics):
+    #create dataframe per replication
+    all_df = []
+    for i, num in enumerate(list(set(list(df['rep'])))):
+        exec("rep_{}_df = df.loc[df['rep']==i]".format(i))
+        exec("all_df.append(rep_{}_df)".format(i))
+
+    #calculate Kolmogorov-Smirnov distance between each replication
+    ks_names = []
+    ks_dfs = []
+    for metric in all_metrics:
+        c = metric
+        exec("{}_ks_df = _spearman_ks_all_rep(all_df, rep_0_df, metric, type='ks')".format(metric))
+        exec("ks_dfs.append({}_ks_df)".format(metric))
+        ks_names.append(metric)
+        print("{}_ks_df has been created".format(metric))
+
+    ks_dict = dict(zip(ks_names, ks_dfs))
+    return ks_dict
+
+def _spearman_ks_all_rep(all_df, rep_0_df, metric, type='Spearman'):
+    # create dataframe of spearman rank correlation coefficient
+    n = 100
+    top_link = []
+    rep_0_new_df = rep_0_df.loc[rep_0_df[metric]!=0]
+    top_link.extend(list(rep_0_new_df.sort_values(metric, ascending=False).osmid[:n]))
+
+    r_df = pd.DataFrame(np.nan, index=list(np.arange(0,len(all_df),1)), columns=list(np.arange(0,len(all_df),1)))
+
+    all_rep = list(r_df.columns)
+    all_rep2 = copy.deepcopy(all_rep)
+
+    for i in all_rep:
+        current_df1 = all_df[i][[metric,'osmid']]
+        current_df1 = current_df1.loc[current_df1['osmid'].isin(top_link)]
+        current_df1 = current_df1.sort_values('osmid')
+        for j in all_rep2:
+            current_df2 = all_df[j][[metric,'osmid']]
+            current_df2 = current_df2.loc[current_df2['osmid'].isin(top_link)]
+            current_df2 = current_df2.sort_values('osmid')
+            if type == 'Spearman':
+                r, p = spearmanr(current_df1[metric], current_df2[metric])
+                r_df.set_value(i, j, r)
+            else:
+                r, p = ks_2samp(current_df1[metric], current_df2[metric])
+                r_df.set_value(i, j, r)
+        all_rep2.remove(i)
+
+    r_df = r_df.transpose()
+    r_df.fillna(0)
+
+    return r_df
+
+def value_sensitivity(df, all_metrics):
+    #TODO: still use quick fix here
+    df2 = df.copy()
+    df2['m03_02'] = df2['m03_02'].apply(lambda val: 0 if val <= 1 else val-1)
+    df2['m01_02'] = df2['m01_02'].apply(lambda val: 0 if val <= 1 else val-1)
+    df2['m01_01'] = df2['m01_01'].apply(lambda val: 0 if val <= 1 else val-1)
+    df2['m02_01'] = df2['m02_01'].apply(lambda val: 0 if val <= 1 else val-1)
+    df2['m06_01'] = df2['m06_01'].apply(lambda val: 0 if val <= 1 else val-1)
+
+    all_df = []
+    for i, num in enumerate(list(set(list(df2['rep'])))):
+        exec("rep_{}_df = df2.loc[df2['rep']==i]".format(i))
+        exec("all_df.append(rep_{}_df)".format(i))
+
+    mad_all_list = []
+    std_all_list = []
+    for metric in all_metrics:
+        mad, stdev = _mad_std_all_rep(all_df, rep_0_df, metric)
+        mad_all_list.append(mad)
+        std_all_list.append(stdev)
+
+    allvalue_df =  pd.DataFrame({'metric': all_metrics, 'mad': mad_all_list, 'std': std_all_list})
+    allvalue_df2 = allvalue_df.sort_values('metric')
+    #remove m04_02 since there is supposed to be no robustness analysis for that metric
+    allvalue_df2 = allvalue_df2.loc[allvalue_df2['metric']!='m04_02']
+
+    return allvalue_df2
+
+
+def _mad_std_all_rep(all_df, rep_0_df, metric):
+    n = 100
+    top_link = []
+    rep_0_new_df = rep_0_df.loc[rep_0_df[metric]!=0]
+    top_link.extend(list(rep_0_new_df.sort_values(metric, ascending=False).osmid[:n]))
+
+    mad_list = []
+    std_list = []
+    for link in top_link:
+        crit_list = []
+        init_val = all_df[0].loc[all_df[0]['osmid']==link][metric].iloc[0]
+        for dataset in all_df:
+            crit_score = dataset.loc[dataset['osmid']==link][metric].iloc[0]
+            crit_list.append(crit_score)
+        crit_list = [x / init_val for x in crit_list]
+        mad = median_absolute_deviation(crit_list)
+        data_std = std(crit_list)
+        mad_list.append(mad)
+        std_list.append(data_std)
+
+    mad_list = [x if x >= 0 else 0 for x in mad_list]
+    std_list = [x if x >= 0 else 0 for x in std_list]
+
+    return mean(mad_list), mean(std_list)
+

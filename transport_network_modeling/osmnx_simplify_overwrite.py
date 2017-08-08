@@ -1,4 +1,5 @@
-#overwrite existing OSMNX simplify algorithm
+#overwrite existing OSMNX simplify algorithm to account for centroid nodes in the network
+#forked from https://github.com/gboeing/osmnx/blob/master/osmnx/simplify.py
 
 import time
 import logging as lg

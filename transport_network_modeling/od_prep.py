@@ -1,11 +1,17 @@
+###################################################################################################
+# Module: od_prep.py
+# Description: OD Matrix calculation
+# Author: Bramka Arga Jafino
+# Web: https://github.com/bramkaarga/transcrit
+###################################################################################################
+
 from __future__ import division
-import os
 import pandas as pd
 import numpy as np
+import networkx as nx
 import geopandas as gp
 
 from math import radians, cos, sin, asin, sqrt
-from shapely.geometry import LineString, Point
 
 __all__ = ['prepare_centroids_list',
            'calc_distance_centroid',
@@ -200,7 +206,9 @@ def CalcDoublyConstrained(ProdA, AttrA, F, maxIter = 10):
 
 def dist_deterrence(distance):
     #Default deterrence function if not specified
-    distance = 10000/distance
+    #distance is a n x n DataFrame of euclidean distance between all centroids
+    distance = distance*distance
+    distance = 100000/distance
     for i in list(distance.columns):
         for j in list(distance.index.values):
             if distance[i][j] > 9999999:
@@ -349,3 +357,42 @@ def od_aggregation(OD_all_dict, **factors_dict):
 def od_preparation(prod_lists, OD_all_dict, **factors_dict):
     OD_final_df = od_aggregation(OD_all_dict, **factors_dict)
     return OD_final_df
+
+# Other distance deterrence functions
+def dist_det_probit(distance, beta=0.05):
+    #distance is a n x n DataFrame of euclidean distance between all centroids
+    haha = pd.DataFrame()
+    for i, row in distance.iterrows():
+        row2 = row * (-beta)
+        exp_row = np.exp(row2)
+        sum_exp = exp_row.sum()
+        exp_row = 100000 * (exp_row / sum_exp)
+        haha = haha.append(exp_row, ignore_index = True)
+
+    haha.values[[np.arange(len(haha))]*2] = 0
+    return haha
+
+def dist_det_shortest_path(distance, G, gdf_points, weight='length'):
+    '''
+    distance: a n x n DataFrame of euclidean distance between all centroids
+    G: Graph object of the transport network
+    gdf_points: GeoDataFrame of location of all centroids
+    weight: Graph object's link attribute that will be used as a cost factor
+    '''
+    centroid_list = list(gdf_points['Node'])
+    c = []
+    for i in range(len(centroid_list)):
+        row_list = []
+        for j in range(len(centroid_list)):
+            if i != j:
+                dist = nx.dijkstra_path_length(G=G, source=centroid_list[i], target=centroid_list[j], weight=weight)
+                row_list.append(dist)
+            else:
+                row_list.append(0)
+        c.append(row_list)
+
+
+    arr = np.arange(len(centroid_list))
+    det_df = pd.DataFrame(c, index=arr, columns=arr)
+
+    return det_df

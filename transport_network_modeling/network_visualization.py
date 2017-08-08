@@ -1,3 +1,10 @@
+###################################################################################################
+# Module: network_visualization.py
+# Description: Visualizing results of criticality analysis
+# Author: Bramka Arga Jafino
+# Web: https://github.com/bramkaarga/transcrit
+###################################################################################################
+
 from __future__ import division
 from matplotlib import pyplot as plt
 from matplotlib.pylab import *
@@ -9,11 +16,8 @@ import numpy as np
 
 import geopandas as gp
 
-from scipy.stats.stats import pearsonr
-from scipy.stats import spearmanr
 import seaborn as sns
-from scipy.stats import gaussian_kde, skewnorm
-from scipy import stats
+from scipy.stats import gaussian_kde
 import scipy
 
 __all__ = ['plot_network_admcolmap_betweenness',
@@ -21,7 +25,11 @@ __all__ = ['plot_network_admcolmap_betweenness',
            'truncate_colormap',
            'plot_network_admcolmap_betweenness_new',
            'plot_od_heatmap',
-		   'plot_network_multimodal']
+		   'plot_network_multimodal',
+           'plot_interactive',
+           'overlap_distribution',
+           'correlation_plot',
+           'two_correlation_plot']
 
 def plot_network_admcolmap_betweenness(gdf,gdf2, colname,betweenness_string,
                                        cmap='OrRd', linewidth=1.25, edgecolor='grey',
@@ -629,4 +637,89 @@ def two_correlation_plot(df1, df2, title='', center=None, vmin=None, vmax=None):
     plt.xticks(rotation=60)
     ax.set_title(title)
 
+    plt.show()
+
+def corr_plot_rank_robustness(df, title='', center=None, vmin=None, vmax=None, save=False, filename=''):
+    sns.set(style="white", font_scale=1.5)
+#     sns.set(font_scale=1.3)
+
+    # Generate a mask for the upper triangle
+    mask = np.zeros_like(df, dtype=np.bool)
+    mask[np.triu_indices_from(mask,1)] = True
+
+    # Set up the matplotlib figure
+    f, ax = plt.subplots(figsize=(12, 12))
+
+    # Draw the heatmap using seaborn
+    sns.heatmap(df, mask=mask, square=True,
+                linewidths=.5, cbar_kws={"shrink": .8}, ax=ax, annot=False, cmap='RdBu_r',
+               center=center, vmin=-1, vmax=1)
+
+    plt.yticks(rotation=0, fontsize=6)
+    plt.xticks(rotation=60, fontsize=6)
+    ax.set_title(title)
+
+    if save:
+        plt.savefig(filename, dpi=200)
+
+    plt.show()
+
+def corr_plot_distribution_robustness(df, title='', center=None, vmin=None, vmax=None, save=False, filename='', cmap='viridis'):
+    sns.set(style="white", font_scale=1.5)
+#     sns.set(font_scale=1.3)
+
+    # Generate a mask for the upper triangle
+    mask = np.zeros_like(df, dtype=np.bool)
+    mask[np.triu_indices_from(mask,1)] = True
+
+    # Set up the matplotlib figure
+    f, ax = plt.subplots(figsize=(12, 12))
+
+    # Draw the heatmap using seaborn
+    sns.heatmap(df, mask=mask, square=True,
+                linewidths=.5, cbar_kws={"shrink": .8}, ax=ax, annot=False,
+               center=center, vmin=0, vmax=1, cmap=cmap)
+
+    plt.yticks(rotation=0, fontsize=6)
+    plt.xticks(rotation=60, fontsize=6)
+    ax.set_title(title)
+
+    if save:
+        plt.savefig(filename, dpi=200)
+
+    plt.show()
+
+def plot_val_sen(df, mad='mad', sd='std', title=''):
+
+    n_groups = len(df.index)
+
+    # create plot
+    fig, ax = plt.subplots()
+    index = np.arange(n_groups)
+    bar_width = 0.35
+    opacity = 0.8
+
+    #set right and top border invisible
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
+    rects1 = plt.bar(index, df[mad], bar_width,
+                     alpha=opacity,
+                     color='b')
+
+    rects2 = plt.bar(index + bar_width, df[sd], bar_width,
+                     alpha=opacity,
+                     color='g')
+
+    plt.legend(['MAD', 'StDev'], bbox_to_anchor=(1, 1))
+
+    plt.axhline(y=0.2, xmin=0, xmax=1, hold=None, color='black', linestyle='dashed')
+
+    plt.xlabel('Metric')
+    plt.ylabel('Average')
+    plt.xticks(index , tuple(df['metric']), rotation=60)
+    plt.legend()
+    plt.title(title, y=1.07)
+
+    plt.tight_layout()
     plt.show()

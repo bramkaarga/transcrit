@@ -1,16 +1,29 @@
+###################################################################################################
+# Module: network_prep.py
+# Description: Preparing raw data into Python objects that are ready to be simulated
+# Authors: Bramka Arga Jafino, Philipp Schwarz
+# Web: https://github.com/bramkaarga/transcrit
+###################################################################################################
+
 from __future__ import division
 import pandas as pd
 import numpy as np
-
 import networkx as nx
 import geopandas as gp
 from osmnx.utils import make_str
-
 from shapely.geometry import LineString, Point
-
 from osmnx_simplify_overwrite import simplify_graph as simp_g
 
-from criticality import probit_assignment
+__all__ = ['prepare_centroids_network',
+           'prepare_centroids_network2',
+           'prepare_gdf_network',
+           'prepare_centroids_network',
+           'gdf_to_simplified_multidigraph',
+           'multigraph_to_graph',
+           'graph_to_df',
+           'prepare_adm_background',
+           'create_link_capacity',
+           'check_connected_components']
 
 def prepare_centroids_network2(centroid, network):
     '''
@@ -90,15 +103,6 @@ def prepare_centroids_network2(centroid, network):
     gdf['osmid'] = gdf.index.map(lambda x: x + 10000)
 
     return gdf_points, gdf_node_pos, gdf
-
-
-__all__ = ['prepare_gdf_network',
-           'prepare_centroids_network',
-           'gdf_to_simplified_multidigraph',
-           'multigraph_to_graph',
-           'graph_to_df',
-           'prepare_adm_background',
-           'create_link_capacity']
 
 def prepare_gdf_network(network):
     '''
@@ -601,3 +605,17 @@ def create_link_capacity(G, item1, item2='length', calctype='multiplication'):
     nx.set_edge_attributes(G1, 'lcapacity', capacity_dict)
 
     return G1
+
+def check_connected_components(gdf):
+    '''
+    print the number of connected components of network from a GeoDataFrame
+    '''
+    gdf['start_point'] = gdf.geometry.apply(lambda x: str(x.coords[0]))
+    gdf['end_point'] = gdf.geometry.apply(lambda x: str(x.coords[-1]))
+    graph = nx.Graph(crs=gdf.crs)
+    for index, row in gdf.iterrows():
+        graph.add_edge(row.start_point, row.end_point)
+    n = nx.number_connected_components(graph)
+    del gdf['start_point']
+    del gdf['end_point']
+    print(n)
