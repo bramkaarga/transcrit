@@ -1,7 +1,7 @@
 # Transport Network Criticality Analysis
 #### Repository of transport network modeling and criticality analysis Python library, along with documentation of a master thesis entitled: "Measuring freight transport network criticality: A case study in Bangladesh"
-#### Author: Bramka Arga Jafino (bramkaarga@gmail.com)
-#### MSc in Engineering and Policy Analysis, Delft University of Technology, The Netherlands 
+#### Author: Bramka Arga Jafino (B.A.Jafino@tudelft.nl)
+#### PhD researcher at the Faculty of Technology, Policy, and Management, Delft University of Technology, The Netherlands 
 
 
 ***Brief summary of the thesis***
