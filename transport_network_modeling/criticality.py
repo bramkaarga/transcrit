@@ -27,7 +27,10 @@ import geopandas as gp
 import copy
 import ema_workbench
 
-from od_prep import od_aggregation
+try:
+	from transport_network_modeling.od_prep import od_aggregation
+except:
+	from od_prep import od_aggregation
 
 __all__ = ['aon_assignment',
            'probit_assignment',
