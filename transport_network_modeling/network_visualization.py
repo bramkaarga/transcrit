@@ -723,3 +723,77 @@ def plot_val_sen(df, mad='mad', sd='std', title=''):
 
     plt.tight_layout()
     plt.show()
+
+def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, minval=0,
+                            linewidth=0.5, edgecolor='grey', perc1=60, perc2=90,
+                            modes=['road', 'water']):
+    
+    fig, ax = plt.subplots(figsize=(12,9))
+
+    ax.set_aspect('equal')
+
+    cmap_pos = [0.72, 0.45, 0.02, 0.43]
+    
+    links2 = links.copy()
+    links2.sort_values(by='mode', inplace=True)
+    
+    link_colors = ['maroon', 'blue']
+    alphas= [0.3, 0.2]
+    
+    c = 0
+
+    #draw roads and waterways
+    for i, mode in enumerate(modes):
+        
+        gdf_mode = links2.loc[links2['mode']==mode]
+        gdf_mode.plot(ax=ax, color=link_colors[i], linewidth=linewidth, alpha=alphas[i])
+        
+    #add colorbar2
+    fig = ax.get_figure()
+    axes_pos = cmap_pos
+    axes_pos[0] = axes_pos[0]
+    cax = fig.add_axes(axes_pos)
+    sm = plt.cm.ScalarMappable(cmap=cmap)
+    columnlist = list(nodes['centrality'])
+    maxbetweenness = max(columnlist)
+    try:
+        columnlist.append(maxval)
+    except:
+        columnlist.append(maxbetweenness)
+    try:
+        columnlist.append(minval)
+    except:
+        pass
+    cbmin, cbmax = min(columnlist), max(columnlist)
+    sm.set_array(columnlist)
+    cb = plt.colorbar(sm, cax=cax, label='Nodes centrality')
+    poin1 = cbmin+(cbmax-cbmin)/4
+    poin2 = cbmin+(cbmax-cbmin)/4*2
+    poin3 = cbmin+(cbmax-cbmin)/4*3
+    labels = [cbmin, poin1, poin2, poin3, cbmax]
+    loc = labels
+    cb.set_ticks(loc)
+    cb.set_ticklabels(labels)
+    cb.ax.tick_params(labelsize=16)
+        
+    valmin2 = min(list(background[back_col]))
+    valmax2 = max(list(background[back_col]))
+    background.plot(ax=ax, column=back_col, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, 
+                    edgecolor=edgecolor, alpha=0.2)
+    
+    #change the size of the nodes based on the percentile  
+    try:
+        thres1 = _get_percentile(nodes, 'centrality', perc1)
+    except:
+        thres1 = 99999
+    try:
+        thres2 = _get_percentile(nodes, 'centrality', perc2)
+    except:
+        thres2 = 999999
+    
+    nodes['markersize'] = nodes['centrality'].apply(lambda c: 5 if c < thres1 else 15 if c >= thres1 and c < thres2 else 30)
+    
+    #draw points
+    nd = nodes.plot(ax=ax, column='centrality', cmap=cmap, markersize= nodes['markersize'], alpha=4)
+    
+    ax.axis('off')
