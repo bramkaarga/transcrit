@@ -195,7 +195,7 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
         G2 = G1.copy()
 
         #set the attribute of G2, we'll work the assignment based on G2's weight information
-        nx.set_edge_attributes(G2, weight, length_dict)
+        nx.set_edge_attributes(G2, name=weight, values=length_dict)
 
 
         #iterate over all sources
@@ -239,7 +239,7 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
                     length = data[weight]
                 penalty_dict.update({tuple([u,v]):length})
 
-            nx.set_edge_attributes(G1, weight, penalty_dict)
+            nx.set_edge_attributes(G1, name=weight, values=penalty_dict)
 
     #assign 0 to all edges which don't belong to any shortest path
     #at the same time, record all the correct order of edges name
@@ -1789,3 +1789,76 @@ def _mad_std_all_rep(all_df, rep_0_df, metric):
 
     return mean(mad_list), mean(std_list)
 
+def node_assignment(flow, nodes_gdf):
+    '''
+    Put results of flow assignment to nodes
+    
+    Parameters
+    ------------
+    flow: dict
+        Flow dictionary obtained from assignment function (e.g. from aon_assignment or probit_assignment)
+    nodes_gdf: GeoDataFrame
+        Geodataframe of all nodes in the original network
+
+    Returns
+    ------------
+    nodes_gdf: GeoDataFrame
+        Geodataframe of all nodes in the simplified network, with 'flow' information added
+    '''
+
+    #take all points in the simplified graph
+    all_points = []
+    for tup in flow.keys():
+        all_points.append(tup[0])
+        all_points.append(tup[1])
+    all_points = list(set(all_points))
+
+    #new gdf of points that exist in the simplified graph
+    nodes_gdf2 = nodes_gdf.copy()
+    nodes_gdf2['bool'] = nodes_gdf2['Node'].apply(lambda n: True if n in all_points else False)
+    nodes_gdf2 = nodes_gdf2[nodes_gdf2['bool']==True]
+
+    newflow = {}
+
+    for key, val in flow.iteritems():
+        try:
+            newflow[key[0]] += val
+        except:
+            newflow[key[0]] = val
+        try:
+            newflow[key[1]] += val
+        except:
+            newflow[key[1]] = val
+
+    nodes_gdf2['flow'] = nodes_gdf2['Node'].apply(lambda n: newflow[n])
+    
+    return nodes_gdf2
+
+def node_betweenness_centrality(flow, nodes_gdf, od):
+    '''
+    Calculate weighted betweenness centrality on nodes level
+    
+    Parameters
+    ------------
+    flow: dict
+        Flow dictionary obtained from assignment function (e.g. from aon_assignment or probit_assignment)
+    nodes_gdf: GeoDataFrame
+        Geodataframe of all nodes in the original network
+    od: DataFrame
+        OD matrix dataframe
+
+    Returns
+    ------------
+    nodes_gdf: GeoDataFrame
+        Geodataframe of all nodes in the simplified network, with 'centrality' and 'flow' information added
+    '''    
+    #assign flow onto nodes
+    nodes_gdf2 = node_assignment(flow, nodes_gdf)
+    
+    #record the total flow in the network
+    totalval = (sum(od.sum())) * 2
+    
+    #normalize the flow
+    nodes_gdf2['centrality'] = nodes_gdf2['flow']/totalval
+    
+    return nodes_gdf2
