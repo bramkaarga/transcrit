@@ -3,8 +3,14 @@
 
 import time
 import logging as lg
-from shapely.geometry import Point, LineString
+import geopandas as gpd
+from shapely.geometry import Polygon
+from shapely.geometry import Point
+from shapely.geometry import LineString
+
+from osmnx.save_load import graph_to_gdfs
 from osmnx.utils import log
+from osmnx.utils import count_streets_per_node
 
 def is_endpoint(G, node, strict=True):
     """
@@ -209,12 +215,11 @@ def simplify_graph(G_, strict=True):
         for u, v in zip(path[:-1], path[1:]):
 
             # there shouldn't be multiple edges between interstitial nodes
-            edges = G.edge[u][v]
-            if not len(edges) == 1:
+            if not G.number_of_edges(u=u, v=v) == 1:
                 log('Multiple edges between "{}" and "{}" found when simplifying'.format(u, v), level=lg.WARNING)
 
             # the only element in this list as long as above assertion is True (MultiGraphs use keys (the 0 here), indexed with ints from 0 and up)
-            edge = edges[0]
+            edge = G.edges[u, v, 0]
             for key in edge:
                 if key in edge_attributes:
                     # if this key already exists in the dict, append it to the value list
