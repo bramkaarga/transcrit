@@ -23,7 +23,8 @@ __all__ = ['prepare_centroids_network',
            'graph_to_df',
            'prepare_adm_background',
            'create_link_capacity',
-           'check_connected_components']
+           'check_connected_components',
+           'read_dotfile']
 
 def prepare_centroids_network2(centroid, network):
     '''
@@ -619,3 +620,136 @@ def check_connected_components(gdf):
     del gdf['start_point']
     del gdf['end_point']
     print(n)
+    
+def read_dotfile(dotfile, 
+                 output='dataframe', 
+                 crs={'proj': 'longlat', 'ellps': 'WGS84', 'datum': 'WGS84'},
+                 redundancy=True):
+    '''
+    Read network data in a dot file format into a DataFrame or a GeoDataFrame.
+    Has only been tested for the output files from Bangladesh transport simulation model (https://github.com/quaquel/bangladesh_roadtransport).
+
+    Parameters
+    ------------
+    dotfile: str
+        File location of the dot file
+    output: str
+        if 'dataframe', return pandas DataFrame, if 'geodataframe', return GeoDataFrame
+    redundancy: bool
+        if False, remove redundant links, if True, retain redundant links
+
+    Returns
+    ------------
+    links_df/links_gdf: DataFrame/GeoDataFrame
+        (Geo)DataFrame of the links in the network
+    nodes_df/nodes_gdf: DataFrame/GeoDataFrame
+        (Geo)DataFrame of the nodes in the network
+    '''
+    #attributes for links dataframe
+    FNODE = []
+    TNODE = []
+    length = []
+    FLRP = []
+    TLRP = []
+    
+    #attribues for nodes dataframe
+    node_id = []
+    LRP = []
+    x_s = [] #identical to longitude
+    y_s = [] #identical to latitude
+    
+    f=open(dotfile,'r')
+    
+    tot_line = sum(1 for _ in f)
+    
+    f=open(dotfile,'r')
+    
+    for i, line in enumerate(f):
+
+        #skip the first row
+        if i > 0 and i<tot_line-1:
+
+            #for the nodes dataframe
+            if '->' in line:
+                #take from and to nodes
+                split_1a = line.split('->')
+                from_node = int(split_1a[0].replace(" ",""))
+                split_1b = split_1a[1].split('[')
+                to_node = int(split_1b[0].replace(" ",""))
+
+                #take length information
+                split_2 = line.split('length=')
+                dist = float(split_2[1].replace('"','').replace(" ","").replace(']','').replace(';',''))
+
+                #take LRP information
+                if 'link=' in line:
+                    split_3a = line.split('link=')
+                    split_3b = split_3a[1].split(']')
+                    split_3c = split_3b[0].split('-')
+                    lrpfrom = split_3c[0]
+                    lrpto = split_3c[1]
+                    FLRP.append(lrpfrom)
+                    TLRP.append(lrpto)
+
+                FNODE.append(from_node)
+                TNODE.append(to_node)
+                length.append(dist)
+
+            else:
+                #take node id
+                split_1 = line.split('[')
+                try:
+                    n_id = int(split_1[0].replace(' ',''))
+                except:
+                    print(line,i)
+
+                #take lrp
+                if 'id=' in line:
+                    split_2a = line.split('id=')
+                    split_2b = split_2a[1].split(',')
+                    n_lrp = split_2b[0]
+
+                #take x and y coordinate
+                split_3a = line.split('point=')
+                for ch in ['(',')',']','"',';',' ']:
+                    split_3a[1] = split_3a[1].replace(ch,'')
+                split_3b = split_3a[1].split(',')
+                x = float(split_3b[0])
+                y = float(split_3b[1])
+
+                node_id.append(n_id)
+                LRP.append(n_lrp)
+                x_s.append(x)
+                y_s.append(y)
+                
+    #create dataframes
+    nodes_df = pd.DataFrame({'id':node_id, 'LRP':LRP, 'x':x_s, 'y':y_s})
+    links_df = pd.DataFrame({'FNODE_':FNODE, 'TNODE_':TNODE, 'length':length, 'from':FLRP, 'to':TLRP})
+    
+    if not redundancy: #remove redundant links, should have 'from' and 'to' columns
+        links_df['identifier'] = links_df.apply(lambda row: sorted([row['from'], row['to']]), axis=1)
+        links_df['identifier'] = links_df['identifier'].apply(lambda idt: str(idt[0])+str(idt[1]))
+        links_df.drop_duplicates(subset=['identifier', 'length'], inplace=True)
+        del links_df['identifier']
+    
+    if output=='dataframe':
+        return nodes_df, links_df
+    
+    elif output=='geodataframe':
+        #modify nodes_df
+        nodes_df['geometry'] = nodes_df.apply(lambda row: Point(row['x'], row['y']), axis=1)
+        nodes_gdf = gp.GeoDataFrame(nodes_df, crs=crs, geometry=nodes_df['geometry'])
+        
+        #modify links_df
+        links_df['from_p'] = links_df['FNODE_'].apply(lambda f: 
+                                                      nodes_gdf.loc[nodes_gdf['id']==f]['geometry'].iloc[0])
+        links_df['to_p'] = links_df['TNODE_'].apply(lambda t: 
+                                                    nodes_gdf.loc[nodes_gdf['id']==t]['geometry'].iloc[0])
+        links_df['geometry'] = links_df.apply(lambda row: LineString([row['from_p'], row['to_p']]), axis=1)
+        links_gdf = gp.GeoDataFrame(links_df, crs=crs, geometry=links_df['geometry'])
+        
+        #delete unnecessary column
+        del links_gdf['from_p']
+        del links_gdf['to_p']
+        
+        return nodes_gdf, links_gdf
