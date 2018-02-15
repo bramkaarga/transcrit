@@ -22,6 +22,8 @@ import numpy as np
 from numpy import std
 import copy
 
+import time
+
 import networkx as nx
 import geopandas as gp
 import copy

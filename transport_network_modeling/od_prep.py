@@ -29,7 +29,7 @@ __all__ = ['prepare_centroids_list',
 #some codes are obtained from https://github.com/joshchea/python-tdm/blob/master/scripts/CalcDistribution.py
 #http://stackoverflow.com/questions/4913349/haversine-formula-in-python-bearing-and-distance-between-two-gps-points
 
-def prepare_centroids_list(G2_new_tograph):
+def prepare_centroids_list(G2_new_tograph, c_val=1):
     '''
     Extracting list of all centroid nodes' ID from the transport network object
 
@@ -48,7 +48,7 @@ def prepare_centroids_list(G2_new_tograph):
     G = G2_new_tograph.copy()
 
     #extract subgraph of centroids from the input nodes
-    SG=G.subgraph( [n[0] for n in G.node.items() if n[1]['IsCentroid'] == 1 ] )
+    SG=G.subgraph( [n[0] for n in G.node.items() if n[1]['IsCentroid'] == c_val ] )
     SG.nodes(data=True)
 
     #convert them into list
@@ -139,8 +139,8 @@ def gen_prod_attr(district_stats, prod_driver, attr_driver='Population_x', mult=
     #calculate relative attraction of each district
     relative_attr = district_stats[attr_driver]
     if mult:
-	for i in relative_attr.iteritems():
-		relative_attr[i[0]] = i[1] * np.random.uniform(0.5, 1.5)
+        for i in relative_attr.iteritems():
+            relative_attr[i[0]] = i[1] * np.random.uniform(0.5, 1.5)
     relative_attr = relative_attr / relative_attr.sum()
 
     #then distribute the production over the relative attraction

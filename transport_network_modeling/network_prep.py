@@ -12,7 +12,7 @@ import networkx as nx
 import geopandas as gp
 from osmnx.utils import make_str
 from shapely.geometry import LineString, Point
-from osmnx_simplify_overwrite import simplify_graph as simp_g
+from .osmnx_simplify_overwrite import simplify_graph as simp_g
 
 __all__ = ['prepare_centroids_network',
            'prepare_centroids_network2',
@@ -26,7 +26,7 @@ __all__ = ['prepare_centroids_network',
            'check_connected_components',
            'read_dotfile']
 
-def prepare_centroids_network2(centroid, network):
+def prepare_centroids_network2(centroids, network, net_from='', net_to=''):
     '''
     Take transport network and centroids shapefiles as inputs
     then returns a geodataframe of the transport network with
@@ -51,11 +51,11 @@ def prepare_centroids_network2(centroid, network):
         node (FNODE) and end node (TNODE). The IsCentroid information is attached as well.
     '''
 
-    #read the centroid shapefile into geodataframe
-    gdf_points = gp.read_file(centroid)
-
     #read the network shapefile into geodataframe
     gdf = prepare_gdf_network(network)
+    
+    if not 'road' in gdf.columns:
+        gdf['road'] = gdf[net_from] + gdf[net_to]
 
     #take all nodes from the network geodataframe into dataframe
     df_node_pos = gdf[['Start_pos', 'FNODE_', 'road']].rename(columns={'Start_pos': 'pos', 'FNODE_': 'Node', 'road': 'road' }).append(
@@ -66,6 +66,10 @@ def prepare_centroids_network2(centroid, network):
 
     #change the column name
     df_node_pos.columns = ['geometry', 'Node', 'road']
+
+    #check if there is any penalty, store it in df_node_pos
+    if 'penalty' in gdf.columns:
+        df_node_pos['penalty'] = df_node_pos.Node.apply(lambda node: max(gdf.loc[(gdf['TNODE_']==node) | (gdf['FNODE_']==node) ]['penalty']))
 
     #add column of POINT type for the geometry
     df_node_pos['pointgeo'] = [Point(xy) for xy in df_node_pos.geometry]
@@ -84,19 +88,31 @@ def prepare_centroids_network2(centroid, network):
     gdf_node_pos = gp.GeoDataFrame(df_node_pos, crs=gdf.crs, geometry=df_node_pos.pointgeo)
     gdf_node_pos['osmid'] = gdf_node_pos.index
 
-    #reference the Node ID of the network to the centroids by selecting the nearest node from the centroid points
-    if 'mode' in gdf.columns:
-        gdf_node_pos_road = gdf_node_pos.loc[gdf_node_pos['road'].isnull()==False]
-        gdf_points['Node'] = gdf_points.geometry.apply(lambda g: gdf_node_pos_road.iloc[gdf_node_pos_road.distance(g).idxmin()].Node)
-    else:
-        gdf_points['Node'] = gdf_points.geometry.apply(lambda g: gdf_node_pos.iloc[gdf_node_pos.distance(g).idxmin()].Node)
-    OD = gdf_points['Node'].tolist()
-    gdf_node_pos['IsCentroid'] = gdf_node_pos.Node.apply(lambda g: 1 if g in OD else 0)
+    centroid_points = {}
+    for n, centroid in enumerate(centroids):
+    
+        #read the centroid shapefile into geodataframe
+        gdf_points = gp.read_file(centroid)
+        
+        #reference the Node ID of the network to the centroids by selecting the nearest node from the centroid points
+        if 'mode' in gdf.columns:
+            gdf_node_pos_road = gdf_node_pos.loc[gdf_node_pos['road'].isnull()==False]
+            gdf_node_pos_road.index = np.arange(0,len(gdf_node_pos_road),1)
+            gdf_points['Node'] = gdf_points.geometry.apply(lambda g: gdf_node_pos_road.iloc[gdf_node_pos_road.distance(g).idxmin()].Node)
+        else:
+            gdf_points['Node'] = gdf_points.geometry.apply(lambda g: gdf_node_pos.iloc[gdf_node_pos.distance(g).idxmin()].Node)
+            
+        nodes = gdf_points['Node'].tolist()
+        numbers = [n+1] * len(nodes)
+        centroid_points.update(dict(zip(nodes, numbers)))
+        
+        
+    gdf_node_pos['IsCentroid'] = gdf_node_pos.Node.apply(lambda g: centroid_points[g] if g in centroid_points.keys() else 0)
 
     #adding Centroid information to the gdf
-    gdf['IsCentroid1'] = gdf.TNODE_.apply(lambda g: 1 if g in OD else 0)
-    gdf['IsCentroid2'] = gdf.FNODE_.apply(lambda g: 1 if (g in OD) else 0)
-    gdf['IsCentroid'] = gdf['IsCentroid1'] + gdf['IsCentroid2']
+    gdf['IsCentroid1'] = gdf.TNODE_.apply(lambda g: centroid_points[g] if g in centroid_points.keys() else 0)
+    gdf['IsCentroid2'] = gdf.FNODE_.apply(lambda g: centroid_points[g] if g in centroid_points.keys() else 0)
+    gdf['IsCentroid'] = gdf[['IsCentroid1','IsCentroid2']].max(axis=1)
     del gdf['IsCentroid1']
     del gdf['IsCentroid2']
 
@@ -104,7 +120,8 @@ def prepare_centroids_network2(centroid, network):
     gdf['osmid'] = gdf.index.map(lambda x: x + 10000)
 
     return gdf_points, gdf_node_pos, gdf
-
+           
+           
 def prepare_gdf_network(network):
     '''
     Converting transport network shapefile into GeoDataFrame
@@ -129,7 +146,9 @@ def prepare_gdf_network(network):
 
     # shapefile needs to include minimal: geometry linestring and the length computed (e.g. in QGIS)
     if 'length' not in gdf.columns:
-        raise Exception('Shapefile is invalid: length not in attributes:\n{}'.format(gdf.columns))
+        print('Shapefile is invalid: length not in attributes:\n{}'.format(gdf.columns))
+        print("length will be automatically generated based on LineString's length")
+        gdf['length'] = gdf['geometry'].apply(lambda line: line.length)
 
     if  not gdf.geometry.map(lambda x: type(x) ==  LineString).all():
         s_invalid_geo = gdf.geometry[gdf.geometry.map(lambda x: type(x) ==  LineString)]
@@ -153,88 +172,6 @@ def prepare_gdf_network(network):
     gdf = pd.merge(gdf, df_points, on='End_pos', how='inner')
 
     return gdf
-
-def prepare_centroids_network_old(centroid, network):
-    '''
-    Similar to prepare_centroids_network but without 'road' column
-
-    Parameters
-    ------------
-    centroid: str
-        string of centroid shapefile's address+filename
-    network: str
-        string of network shapefile's address+name
-
-    Returns
-    ------------
-    gdf_points: GeoDataFrame
-        geodataframe (Points) of centroids shapefile
-    gdf_node_pos: GeoDataFrame
-        geodataframe (Points) of nodes obtained from all links in the network shapefile.
-        The IsCentroid information is attached if a node is the closest node from a centroid.
-    gdf: GeoDataFrame
-        geodataframe (LineString) of the original network, containing information about the start
-        node (FNODE) and end node (TNODE). The IsCentroid information is attached as well.
-    '''
-
-    #read the centroid shapefile into geodataframe
-    gdf_points = gp.read_file(centroid)
-
-    #read the network shapefile into geodataframe
-    gdf = prepare_gdf_network(network)
-
-    #take all nodes from the network geodataframe into dataframe
-    df_node_pos = gdf[['Start_pos', 'FNODE_']].rename(columns={'Start_pos': 'pos', 'FNODE_': 'Node' }).append(
-                gdf[['End_pos', 'TNODE_']].rename(columns={'End_pos': 'pos', 'TNODE_': 'Node' }))
-
-    #drop all duplicate nodes
-    df_node_pos = df_node_pos.drop_duplicates(subset='Node')
-
-    #change the column name
-    df_node_pos.columns = ['geometry', 'Node']
-
-    #check if there is any penalty, store it in df_node_pos
-    if 'penalty' in gdf.columns:
-        df_node_pos['penalty'] = df_node_pos.Node.apply(lambda node: max(gdf.loc[(gdf['TNODE_']==node) | (gdf['FNODE_']==node) ]['penalty']))
-
-    #add column of POINT type for the geometry
-    df_node_pos['pointgeo'] = [Point(xy) for xy in df_node_pos.geometry]
-
-    #reindex the dataframe
-    df_node_pos.index = range(len(df_node_pos))
-
-    #save the longitude (x) and latitude(y) separately
-    xy = np.array(df_node_pos['geometry'].tolist())
-    x = [xy[i,0] for i in range(len(xy))]
-    y = [xy[i,1] for i in range(len(xy))]
-    df_node_pos['x'] = x
-    df_node_pos['y'] = y
-
-    #create geodataframe of the network points from dataframe
-    gdf_node_pos = gp.GeoDataFrame(df_node_pos, crs=gdf.crs, geometry=df_node_pos.pointgeo)
-    gdf_node_pos['osmid'] = gdf_node_pos.index
-
-    #reference the Node ID of the network to the centroids by selecting the nearest node from the centroid points
-    if 'mode' in gdf.columns:
-        gdf_node_pos_road = gdf_node_pos.loc[gdf_node_pos['road'].isnull()==False]
-        gdf_node_pos_road.index = np.arange(0,len(gdf_node_pos_road),1)
-        gdf_points['Node'] = gdf_points.geometry.apply(lambda g: gdf_node_pos_road.iloc[gdf_node_pos_road.distance(g).idxmin()].Node)
-    else:
-        gdf_points['Node'] = gdf_points.geometry.apply(lambda g: gdf_node_pos.iloc[gdf_node_pos.distance(g).idxmin()].Node)
-    OD = gdf_points['Node'].tolist()
-    gdf_node_pos['IsCentroid'] = gdf_node_pos.Node.apply(lambda g: 1 if g in OD else 0)
-
-    #adding Centroid information to the gdf
-    gdf['IsCentroid1'] = gdf.TNODE_.apply(lambda g: 1 if g in OD else 0)
-    gdf['IsCentroid2'] = gdf.FNODE_.apply(lambda g: 1 if (g in OD) else 0)
-    gdf['IsCentroid'] = gdf['IsCentroid1'] + gdf['IsCentroid2']
-    del gdf['IsCentroid1']
-    del gdf['IsCentroid2']
-
-    #create unique osmid for the network LineString GeoDataFrame
-    gdf['osmid'] = gdf.index.map(lambda x: x + 10000)
-
-    return gdf_points, gdf_node_pos, gdf
 	
 def prepare_centroids_network(centroid, network):
     '''
@@ -270,8 +207,6 @@ def prepare_centroids_network(centroid, network):
     #take all nodes from the network geodataframe into dataframe
     df_node_pos = gdf[['Start_pos', 'FNODE_', 'road']].rename(columns={'Start_pos': 'pos', 'FNODE_': 'Node', 'road': 'road' }).append(
                 gdf[['End_pos', 'TNODE_', 'road']].rename(columns={'End_pos': 'pos', 'TNODE_': 'Node', 'road': 'road' }))
-    # df_node_pos = gdf[['Start_pos', 'FNODE_']].rename(columns={'Start_pos': 'pos', 'FNODE_': 'Node' }).append(
-    #             gdf[['End_pos', 'TNODE_']].rename(columns={'End_pos': 'pos', 'TNODE_': 'Node' }))
 
     #drop all duplicate nodes
     df_node_pos = df_node_pos.drop_duplicates(subset='Node')
@@ -361,18 +296,6 @@ def gdf_to_simplified_multidigraph(gdf_node_pos, gdf, undirected = True):
         dict_row  = row.to_dict()
         if 'geometry' in dict_row: del dict_row['geometry']
         G2.add_edge(u=dict_row['FNODE_'], v=dict_row['TNODE_'], **dict_row)
-
-    #swap the FNODE and the TNODE since we want to make bidirectional graph
-    # gdf.rename(columns={'Start_pos': 'End_pos',
-    #                    'End_pos': 'Start_pos',
-    #                    'FNODE_': 'TNODE_',
-    #                    'TNODE_': 'FNODE_', }, inplace=True)
-
-    #do the iteration again
-    # for index, row in gdf.iterrows():
-    #     dict_row  = row.to_dict()
-    #     if 'geometry' in dict_row: del dict_row['geometry']
-    #     G2.add_edge(u=dict_row['FNODE_'], v=dict_row['TNODE_'], **dict_row)
 
     #simplify the MultiDiGraph using OSMNX's overwritten function
     #there should be no NaN values in the geodataframe, else it will return an error

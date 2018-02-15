@@ -44,7 +44,7 @@ def is_endpoint(G, node, strict=True):
     if penalty > 0:
         return True
 
-    elif G.node[node].get('IsCentroid') == 1:
+    elif G.node[node].get('IsCentroid') > 0 :
         return True
 
     else:

@@ -726,7 +726,7 @@ def plot_val_sen(df, mad='mad', sd='std', title=''):
 
 def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, minval=0,
                             linewidth=0.5, edgecolor='grey', perc1=60, perc2=90,
-                            modes=['road', 'water']):
+                            modes=['road', 'water'], c_val=0):
     
     fig, ax = plt.subplots(figsize=(12,9))
 
@@ -748,13 +748,17 @@ def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, mi
         gdf_mode = links2.loc[links2['mode']==mode]
         gdf_mode.plot(ax=ax, color=link_colors[i], linewidth=linewidth, alpha=alphas[i])
         
+    if c_val > 0:
+        nodes2 = nodes.loc[nodes['IsCentroid']==c_val]
+    else:
+        nodes2 = nodes.copy()
     #add colorbar2
     fig = ax.get_figure()
     axes_pos = cmap_pos
     axes_pos[0] = axes_pos[0]
     cax = fig.add_axes(axes_pos)
     sm = plt.cm.ScalarMappable(cmap=cmap)
-    columnlist = list(nodes['centrality'])
+    columnlist = list(nodes2['centrality'])
     maxbetweenness = max(columnlist)
     try:
         columnlist.append(maxval)
@@ -781,19 +785,64 @@ def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, mi
     background.plot(ax=ax, column=back_col, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, 
                     edgecolor=edgecolor, alpha=0.2)
     
-    #change the size of the nodes based on the percentile  
+    #threshold for nodes size
     try:
-        thres1 = _get_percentile(nodes, 'centrality', perc1)
+        thres1 = _get_percentile(nodes2, 'centrality', perc1)
     except:
         thres1 = 99999
     try:
-        thres2 = _get_percentile(nodes, 'centrality', perc2)
+        thres2 = _get_percentile(nodes2, 'centrality', perc2)
     except:
         thres2 = 999999
     
-    nodes['markersize'] = nodes['centrality'].apply(lambda c: 5 if c < thres1 else 15 if c >= thres1 and c < thres2 else 30)
+    #draw points
+    if c_val == 0:
+        nodes['markersize'] = nodes['centrality'].apply(lambda c: 5 if c < thres1 else 15 if c >= thres1 and c < thres2 else 30)
+        nd = nodes.plot(ax=ax, column='centrality', cmap=cmap, markersize= nodes['markersize'], alpha=4)
+    else:
+        nodes2['markersize'] = nodes2['centrality'].apply(lambda c: 30 if c < thres1 else 60 if c >= thres1 and c < thres2 else 120)
+        nd = nodes2.plot(ax=ax, column='centrality', cmap=cmap, markersize= nodes2['markersize'], alpha=4)
+    
+    ax.axis('off')
+    
+def plot_centroids(background, links, nodes, back_col, c_val,
+                            linewidth=0.5, edgecolor='grey',
+                            modes=['road', 'water']):
+    
+    fig, ax = plt.subplots(figsize=(12,9))
+
+    ax.set_aspect('equal')
+
+    cmap_pos = [0.72, 0.45, 0.02, 0.43]
+    
+    links2 = links.copy()
+    links2.sort_values(by='mode', inplace=True)
+    
+    link_colors = ['maroon', 'blue']
+    alphas= [0.6, 0.4]
+    
+    c = 0
+
+    #draw roads and waterways
+    for i, mode in enumerate(modes):
+        
+        gdf_mode = links2.loc[links2['mode']==mode]
+        gdf_mode.plot(ax=ax, color=link_colors[i], linewidth=linewidth, alpha=alphas[i])
+        
+    
+    #draw background    
+    valmin2 = min(list(background[back_col]))
+    valmax2 = max(list(background[back_col]))
+    background.plot(ax=ax, column=back_col, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, 
+                    edgecolor=edgecolor, alpha=1)
+    
+    nodes['markersize'] = nodes['IsCentroid'].apply(lambda c: 1 if c != c_val else 60)
+    
+    nodes['colors'] = nodes['IsCentroid'].apply(lambda c: 'none' if c != c_val else 'red')
+    
+    nodes['alphas'] = nodes['IsCentroid'].apply(lambda c: 0 if c != c_val else 1.5)
     
     #draw points
-    nd = nodes.plot(ax=ax, column='centrality', cmap=cmap, markersize= nodes['markersize'], alpha=4)
+    nodes.plot(ax=ax, color=nodes['colors'], markersize= nodes['markersize'], alpha=1)
     
     ax.axis('off')
