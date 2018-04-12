@@ -6,27 +6,32 @@
 ###################################################################################################
 
 from __future__ import division
+
+import collections
+import copy
+import time
+import os
+import sys
+
+from heapq import heappush, heappop
+from itertools import count
+
+import pandas as pd
+import numpy as np
+import networkx as nx
+import geopandas as gp
+
 from matplotlib import pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.pylab import *
 from shapely.geometry import LineString, Point, Polygon, MultiPolygon
-from heapq import heappush, heappop
-from itertools import count
 from scipy.stats.stats import pearsonr
 from scipy.stats import spearmanr, ks_2samp
+
 from astropy.stats import median_absolute_deviation
 
-import os
-import pandas as pd
-import numpy as np
 from numpy import std
-import copy
 
-import time
-
-import networkx as nx
-import geopandas as gp
-import copy
 import ema_workbench
 
 try:
@@ -55,6 +60,7 @@ __all__ = ['aon_assignment',
            'correlate_metrics_pearson',
            'correlate_metrics_spearman',
            'correlate_metrics_ks']
+
 
 def aon_assignment(G, sources, targets, weight, od):
     '''
@@ -121,7 +127,7 @@ def aon_assignment(G, sources, targets, weight, od):
 
     #alter the tuple(u,v) to tuple(v,u) if the order is inconsistent with the original graph's order
     d1 = {}
-    for key, val in d.iteritems():
+    for key, val in d.items():
         if not key in edges_list:
             tup = tuple([key[1], key[0]])
             d1.update({tup:val})
@@ -129,6 +135,7 @@ def aon_assignment(G, sources, targets, weight, od):
             d1.update({key:val})
 
     return d1
+
 
 def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
     '''
@@ -168,16 +175,16 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
     '''
 
     #create empty dict
-    d={}
+    d = collections.defaultdict(float)
 
     #create copy of original network to avoid changing the attributes of the original network
     G1 = G.copy()
-
+    
     #iterate N times
-    #in each iteration, sample the link's weight by using normal distribution
+    #in each iteration, sample the link's weight using a normal distribution
     for i in np.arange(N):
         length_dict = {}
-        for u,v,data in G1.edges(data=True):
+        for u, v, data in G1.edges(data=True):
             tup = tuple([u,v])
             if sd > 0:
                 length_mean = data[weight]
@@ -191,7 +198,7 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
                     length = 0
             else:
                 length = data[weight]
-            length_dict.update({tup:length})
+            length_dict[tup] = length
 
         #create a copy of G1 since we want to work the penalty on G1 later
         G2 = G1.copy()
@@ -199,72 +206,73 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
         #set the attribute of G2, we'll work the assignment based on G2's weight information
         nx.set_edge_attributes(G2, name=weight, values=length_dict)
 
-
         #iterate over all sources
-        penalty_list = []
-        for i in range(len(sources)):
-            source = sources[i]
+        penalty_set = set()
+        for i, source in enumerate(sources):
             #iterate over all edges
-            for j in range(len(targets)):
-                target = targets[j]
+            for j, target in enumerate(targets):
                 #it is assumed that there is no self-loop on the node
                 #e.g. there is no link from node A to node A
-                if source != target :
-                    #determine shortest path between the OD pair
-                    sp_dijk_all = nx.dijkstra_path(G2, source=source, target=target, weight=weight)
-                    #update the betweenness value of all edges in the shortest path
-                    flow = od[source][target]
-                    #divide the flow over the number of iteration
-                    flow = flow/N
-                    for j in range(len(sp_dijk_all)-1):
-                        lst = [sp_dijk_all[j],sp_dijk_all[j+1]]
-                        lst = [min(lst), max(lst)]
-                        tup = tuple(lst)
-                        if tup in d.keys():
-                            d[tup]+=1*flow
-                        else:
-                            d.update({tup:1*flow})
+                if source == target:
+                    continue
+                
+                #determine shortest path between the OD pair
+                sp_dijk_all = nx.dijkstra_path(G2, source=source, target=target, 
+                                               weight=weight)
 
-                        #if we want to work with penalty, record the shortest paths
-                        if penalty > 0:
-                            penalty_list.append(tup)
-                            tup = tuple([tup[1],tup[0]])
-                            penalty_list.append(tup)
+
+                #update the betweenness value of all edges in the shortest path
+                flow = od.ix[source, target]
+                
+                #divide the flow over the number of iteration
+                flow = flow/N
+                for j in range(len(sp_dijk_all)-1):
+                    lst = [sp_dijk_all[j], sp_dijk_all[j+1]]
+                    lst = [min(lst), max(lst)]
+                    tup = tuple(lst)
+                    d[tup] += flow
+
+                    #if we want to work with penalty, record the shortest paths
+                    if penalty:
+                        penalty_set.add(tup)
+                        tup = tup[::-1]
+                        penalty_set.add(tup)
 
         #if work with penalty, update the weight of the links which belong to the shortest paths
-        if penalty > 0:
+        if penalty:
             penalty_dict = {}
-            for u,v,data in G1.edges(data=True):
-                if tuple([u,v]) in penalty_list:
+            for u, v,data in G1.edges(data=True):
+                if tuple([u,v]) in penalty_set:
                     length = data[weight] * penalty
                 else:
                     length = data[weight]
-                penalty_dict.update({tuple([u,v]):length})
+                penalty_dict[tuple([u,v])] = length
 
             nx.set_edge_attributes(G1, name=weight, values=penalty_dict)
 
     #assign 0 to all edges which don't belong to any shortest path
     #at the same time, record all the correct order of edges name
-    edges_list = []
+    edges_set = set()
     for u,v in G.edges():
         elst = [u,v]
         elst = [min(elst), max(elst)]
         etup = tuple(elst)
-        if not etup in d.keys():
-            d.update({etup:0})
+        if not etup in d:
+            d[etup] = 0.0
         tup = tuple([u,v])
-        edges_list.append(tup)
+        edges_set.add(tup)
 
     #alter the tuple(u,v) to tuple(v,u) if the order is inconsistent with the original graph's order
     d1 = {}
-    for key, val in d.iteritems():
-        if not key in edges_list:
+    for key, val in d.items():
+        if not key in edges_set:
             tup = tuple([key[1], key[0]])
-            d1.update({tup:val})
+            d1[tup] = val
         else:
-            d1.update({key:val})
+            d1[key] = val
 
     return d1
+
 
 def correlate_metric_spearman(df, m_a, m_b):
 
@@ -272,6 +280,7 @@ def correlate_metric_spearman(df, m_a, m_b):
     r, p = spearmanr(df2[m_a], df2[m_b])
 
     return r, p, len(df2)
+
 
 def edge_betweenness_centrality(flow, od):
     '''
@@ -302,6 +311,7 @@ def edge_betweenness_centrality(flow, od):
         flow2[key] = val / totalval
 
     return flow2
+
 
 def edge_betweenness_subset_od(G, sources, targets, weight, od):
     '''
@@ -370,6 +380,7 @@ def edge_betweenness_subset_od(G, sources, targets, weight, od):
 
     return d
 
+
 def betweenness_to_df(gdf,betweenness,betweenness_string):
     '''
     Append betweenness centrality result to the transport network's GeoDataFrame.
@@ -392,7 +403,7 @@ def betweenness_to_df(gdf,betweenness,betweenness_string):
         Betweenness dictionary transformed into dataframe
     '''
 
-    betweenness_df = pd.DataFrame(betweenness.items(), columns=['FromTo_tuple', betweenness_string])
+    betweenness_df = pd.DataFrame(list(betweenness.items()), columns=['FromTo_tuple', betweenness_string])
 
     FromTo_tuple = betweenness_df['FromTo_tuple'].tolist()
     FromTo_tolist = []
@@ -419,6 +430,7 @@ def betweenness_to_df(gdf,betweenness,betweenness_string):
 
     return gdf_final, betweenness_df
 
+
 def _shortest_path_record(G, sources, targets, weight):
     '''
     Record links in shortest pats of all od pairs
@@ -435,9 +447,10 @@ def _shortest_path_record(G, sources, targets, weight):
                 d[od_pair] = (sp_dijk_all, source, target)
     return d
 
+
 def edge_betweenness_subset_od_ema(G, sp_dict, od):
     d={}
-    for key, val in sp_dict.iteritems():
+    for key, val in sp_dict.items():
         source = val[1]
         target = val[2]
         sp = val[0]
@@ -463,6 +476,7 @@ def edge_betweenness_subset_od_ema(G, sp_dict, od):
             d.update({etup:0})
     return d
 
+
 def ema_betweenness(prod_lists, OD_all_dict, G, sp_dict, **factors_dict):
     OD_final_df = od_aggregation(OD_all_dict, **factors_dict)
 
@@ -470,11 +484,12 @@ def ema_betweenness(prod_lists, OD_all_dict, G, sp_dict, **factors_dict):
     betweenness = edge_betweenness_subset_od_ema(G=G, sp_dict=sp_dict, od=OD_final_df)
 
     new_d = {}
-    for key, val in betweenness.iteritems():
+    for key, val in betweenness.items():
         new_key = str(key[0])+str(key[1])
         new_d[new_key] = val
 
     return new_d
+
 
 def k_shortest_paths(G, source, target, k=1, weight='weight'):
     #MAY NOT BE USED ANYMORE
@@ -538,6 +553,7 @@ def k_shortest_paths(G, source, target, k=1, weight='weight'):
 
     return (lengths, paths)
 
+
 def _get_path_length(G, path, weight='weight'):
     #MAY NOT BE USED ANYMORE
     length = 0
@@ -549,6 +565,7 @@ def _get_path_length(G, path, weight='weight'):
             length += G.edge[u][v].get(weight, 1)
 
     return length
+
 
 def _total_cost_sp(G, sources, targets, weight, od, weighted=True):
     '''
@@ -579,6 +596,7 @@ def _total_cost_sp(G, sources, targets, weight, od, weighted=True):
                 d.update({tup:cost})
 
     return total_cost, d
+
 
 def sp_dict_graph_creation(G, sources, targets, weight):
     '''
@@ -612,7 +630,7 @@ def sp_dict_graph_creation(G, sources, targets, weight):
         edgelist.append(edge)
 
     sp_dict_graph = {}
-    for key, val in sp_dict.iteritems():
+    for key, val in sp_dict.items():
         source = val[1]
         target = val[2]
         tup = tuple([source, target])
@@ -626,114 +644,56 @@ def sp_dict_graph_creation(G, sources, targets, weight):
                 sp_dict_graph[tup].append(test2)
     return sp_dict_graph
 
-def interdiction_single_edge(G2, od, weight, sp_dict_graph, sources, targets):
-    '''
-    Function to calculate increase in total travel cost due to link removal (interdiction criticality),
-    number of disconnected od pair due to link removal,
-    and unsatisfied demand due to link removal
 
-    Parameters
-    ------------
-    G2: Graph
-        Transport network Graph Networkx object that will be analyzed
-    od: DataFrame
-        OD matrix dataframe
-    weight: str
-        String which corresponds to attribute of G Graph's edges that will be used as penalty for each
-        edge. In most cases this is defined as 'length' of the edge
-    sp_dict_graph: dict
-        Dictionary which contains OD pair nodes' id as key and list of links in shortest path as values
-    sources: list
-        List of nodes (integer) that will be used as sources. The integer should correspond to
-        node id in G Graph
-    targets: list
-        List of nodes (integer) that will be used as targets. The integer should correspond to
-        node id in G Graph
-
-    Returns
-    ------------
-    new_interdiction_dict:
-        Dictionary with edge tuple as keys (e.g. (2,3) ) and interdiction criticality as values
-    new_disconnected_dict:
-        Dictionary with edge tuple as keys (e.g. (2,3) ) and number of disconnected OD pair as values
-    new_unsatisfied_demand_dict:
-        Dictionary with edge tuple as keys (e.g. (2,3) ) and unsatisfied demand as values
-    '''
-
-    c = 0
-    ff=0
-    interdiction_dict = {}
-    disconnected_dict = {}
-    unsatisfied_demand_dict = {}
+def interdiction_single_edge(G2, od, weight, sp_dict_graph, sources, targets):    
+    interdiction_costs = {}
+    interdiction_disconnected = {}
+    interdiction_unsatisfieddemand = {}
 
     total_cost_base, od_cost_dict = _total_cost_sp(G=G2, sources=sources, targets=targets,
-                                                  weight='length', od=od)
+                                                       weight='length', od=od)
+    
+    edges_odmap = collections.defaultdict(list)
+    for key, value in sp_dict_graph.items():
+        for entry in value:
+            edges_odmap[entry].append(key)
 
-    path_in_sp_list = []
-    for i in sp_dict_graph.iteritems():
-        path_in_sp_list += i[1]
-
-    path_in_sp_list = list(set(path_in_sp_list))
-
-    for i in path_in_sp_list:
-        ff += 1
-        if ff%200 == 0:
-            print(str(ff)+' edges have been interdicted')
-        u = i[0]
-        v = i[1]
-        od_cost_dict2 = od_cost_dict.copy()
-        tup = tuple([u,v])
+    for edge, ods in sorted(list(edges_odmap.items()), key=lambda x:x[0]):
+        od_cost = od_cost_dict.copy()
         G = G2.copy()
-        G.remove_edge(u,v)
-        disconnected = 0
+        G.remove_edge(edge[0], edge[1])
+
+        disconnected = 0 
         unsatisfied_demand = 0
-        for key, val in sp_dict_graph.iteritems():
-            if tup in val:
-                try:
-                    sp_dijk_distance = nx.dijkstra_path_length(G, source=key[0], target=key[1], weight=weight)
-                    flow = od[key[0]][key[1]]
-                    cost = sp_dijk_distance * flow
-                    od_cost_dict2[key] = cost
-                except:
-                    sp_dijk_distance = 9999
-                    disconnected += 1
-                    flow = od[key[0]][key[1]]
-                    unsatisfied_demand += flow
-        total_cost_new = sum(od_cost_dict2.values())
-        cost_increase = (total_cost_new - total_cost_base)/total_cost_base
+
+        for source, target in ods:
+            demand = od.loc[source, target]
+
+            try: 
+                distance = nx.dijkstra_path_length(G, source=source, target=target, 
+                                                   weight=weight)
+            except nx.NetworkXNoPath:
+                disconnected += 1
+                unsatisfied_demand += demand
+            else:
+                costs = distance * demand
+                od_cost[(source, target)] = costs
+
+        total_costs = sum(list(od_cost.values()))
+        cost_increase = (total_costs - total_cost_base)/total_cost_base
         unsatisfied_demand = unsatisfied_demand/total_cost_base
         if cost_increase < 0:
             cost_increase = 0
-        interdiction_dict.update({tup:cost_increase})
-        disconnected_dict.update({tup:disconnected})
-        unsatisfied_demand_dict.update({tup:unsatisfied_demand})
 
+        interdiction_costs[edge] = cost_increase
+        interdiction_disconnected[edge] = disconnected
+        interdiction_unsatisfieddemand[edge] = unsatisfied_demand
+        
+    # interdiction_costs = {'{}{}'.format(*sorted(k)):v for k,v in interdiction_costs.items()}
+    # disconnected = {'{}{}'.format(*sorted(k)):v for k,v in interdiction_disconnected.items()}
+    # unsatisfied_demand = {'{}{}'.format(*sorted(k)):v for k,v in interdiction_unsatisfieddemand.items()}
+    return interdiction_costs, interdiction_disconnected, interdiction_unsatisfieddemand
 
-    new_interdiction_dict = {}
-    for key, val in interdiction_dict.iteritems():
-        lst=[key[0], key[1]]
-        maxs=max(lst)
-        mins=min(lst)
-        new_key = str(mins)+str(maxs)
-        new_interdiction_dict[new_key] = val
-
-    new_disconnected_dict = {}
-    for key, val in disconnected_dict.iteritems():
-        lst=[key[0], key[1]]
-        maxs=max(lst)
-        mins=min(lst)
-        new_key = str(mins)+str(maxs)
-        new_disconnected_dict[new_key] = val
-
-    new_unsatisfied_demand_dict = {}
-    for key, val in unsatisfied_demand_dict.iteritems():
-        lst=[key[0], key[1]]
-        maxs=max(lst)
-        mins=min(lst)
-        new_key = str(mins)+str(maxs)
-        new_unsatisfied_demand_dict[new_key] = val
-
-    return new_interdiction_dict, new_disconnected_dict, new_unsatisfied_demand_dict
 
 def ksp_edge_betweenness_subset_od(G, sources, targets, weight, od, k):
     '''
@@ -806,6 +766,7 @@ def ksp_edge_betweenness_subset_od(G, sources, targets, weight, od, k):
 
     return d
 
+
 def min_edge_cut(G, centroid_nodes):
     '''
     Function to calculate minimum edge cut criticality of all links in a transport network
@@ -851,6 +812,7 @@ def min_edge_cut(G, centroid_nodes):
 # Metrics M1: Change in unewighted daily accessibility and
 # change in number of nodes accessible within daily reach
 
+
 def _daily_accessibility(centroid, G, theta, weight='length', beta=0.5):
     '''
     Helper function for function interdiction_m1
@@ -881,6 +843,7 @@ def _daily_accessibility(centroid, G, theta, weight='length', beta=0.5):
 
     return a, count_node
 
+
 def _dict_daily_accessibility(centroids, G, theta, weight='length', beta=0.5):
     '''
     Helper function for function interdiction_m1
@@ -899,16 +862,17 @@ def _dict_daily_accessibility(centroids, G, theta, weight='length', beta=0.5):
 
     return a_dict, a_n_dict
 
+
 def _sum_daily_accessibility(a_dict, a_n_dict):
     '''
     Helper function for function interdiction_m1
     '''
     sum_a = 0
-    for key, val in a_dict.iteritems():
+    for key, val in a_dict.items():
         sum_a += val
 
     sum_a_n = 0
-    for key, val in a_n_dict.iteritems():
+    for key, val in a_n_dict.items():
         sum_a_n += val
 
     return sum_a, sum_a_n
@@ -931,7 +895,7 @@ def _all_daily_sp_record(G, sources, cutoff, weight):
     for source in sources:
         sp_dict = nx.single_source_dijkstra_path(G=G, source=source, cutoff=cutoff, weight=weight)
         source_sp_list = []
-        for key, val in sp_dict.iteritems():
+        for key, val in sp_dict.items():
             for n in np.arange(0, len(val)-1, 1):
                 start = val[n]
                 end = val[n+1]
@@ -1013,7 +977,7 @@ def interdiction_m1(G2, centroids, theta, weight, beta=0.5):
         G.remove_edge(u,v)
 
         #iterate over all centroids
-        for key, val in all_daily_sp_dict.iteritems():
+        for key, val in all_daily_sp_dict.items():
             #if the removed edge is part of that centroid's daily shortest path
             #recalculate the daily accessibility of that centroid
             #and update the daily accessibility dictionary
@@ -1134,7 +1098,7 @@ def interdiction_m2(G2, od, weight, sources, targets):
 
     #record all shortest paths of all OD pairs
     path_in_sp_list = []
-    for i in sp_dict_graph.iteritems():
+    for i in sp_dict_graph.items():
         path_in_sp_list += i[1]
     path_in_sp_list = list(set(path_in_sp_list))
 
@@ -1161,7 +1125,7 @@ def interdiction_m2(G2, od, weight, sources, targets):
         #iterate over all OD pairs
         #very time consuming. gimana kalau untuk setiap edge, di store dia melalui shortest path od pair mana aja?
         #jadi gak perlu iterate 4000 kali untuk setiap edge
-        for key, val in sp_dict_graph.iteritems():
+        for key, val in sp_dict_graph.items():
             #if the removed edge is part of that OD pair's shortest path
             #recalculate the unweighted (inversed) cost
             #and update the corresponding dictionaries
@@ -1282,7 +1246,7 @@ def interdiction_m6(G2, weight, centroids, od, beta=0.5):
 
     #record all shortest paths of all OD pairs
     path_in_sp_list = []
-    for i in sp_dict_graph.iteritems():
+    for i in sp_dict_graph.items():
         path_in_sp_list += i[1]
     path_in_sp_list = list(set(path_in_sp_list))
 
@@ -1311,7 +1275,7 @@ def interdiction_m6(G2, weight, centroids, od, beta=0.5):
         #iterate over all OD pairs
         #very time consuming. gimana kalau untuk setiap edge, di store dia melalui shortest path od pair mana aja?
         #jadi gak perlu iterate 4000 kali untuk setiap edge
-        for key, val in sp_dict_graph.iteritems():
+        for key, val in sp_dict_graph.items():
             #if the removed edge is part of that OD pair's shortest path
             #recalculate the weighted accessibility for the source
             #and update the corresponding dictionaries
@@ -1427,7 +1391,7 @@ def interdiction_user_exposure(G2, centroids, weight, od):
 
     #record all shortest paths of all OD pairs
     path_in_sp_list = []
-    for i in sp_dict_graph.iteritems():
+    for i in sp_dict_graph.items():
         path_in_sp_list += i[1]
     path_in_sp_list = list(set(path_in_sp_list))
 
@@ -1456,7 +1420,7 @@ def interdiction_user_exposure(G2, centroids, weight, od):
         sum_exposure = 0
 
         #iterate over all OD pairs
-        for key, val in sp_dict_graph.iteritems():
+        for key, val in sp_dict_graph.items():
             if i in val:
                 exposure = _user_exposure(G_new=G, centroid=key[0], target=key[1],
                                           weight=weight, od=od, sp_cost_dict=sp_cost_dict)
@@ -1465,7 +1429,7 @@ def interdiction_user_exposure(G2, centroids, weight, od):
         #calculate expected and worst user exposure
         expected_ue_dict = {}
         worst_ue_dict = {}
-        for key, val in user_exposure_dict.iteritems():
+        for key, val in user_exposure_dict.items():
             if len(val) > 0:
                 average_val = average(val)
                 worst_val = max(val)
@@ -1809,32 +1773,32 @@ def node_assignment(flow, nodes_gdf):
     '''
 
     #take all points in the simplified graph
-    all_points = []
+    #take all points in the simplified graph
+    all_points = set()
     for tup in flow.keys():
-        all_points.append(tup[0])
-        all_points.append(tup[1])
-    all_points = list(set(all_points))
+        for entry in tup:
+            all_points.add(entry)
 
     #new gdf of points that exist in the simplified graph
     nodes_gdf2 = nodes_gdf.copy()
-    nodes_gdf2['bool'] = nodes_gdf2['Node'].apply(lambda n: True if n in all_points else False)
-    nodes_gdf2 = nodes_gdf2[nodes_gdf2['bool']==True]
+    nodes_gdf2.loc[:, 'bool'] = nodes_gdf2.loc[:, 'Node'].apply(lambda n: True if n in all_points else False)
+    nodes_gdf2 = nodes_gdf2[nodes_gdf2.loc[:,'bool']==True]
 
     newflow = {}
-
-    for key, val in flow.iteritems():
-        try:
-            newflow[key[0]] += val
-        except:
-            newflow[key[0]] = val
-        try:
-            newflow[key[1]] += val
-        except:
-            newflow[key[1]] = val
-
-    nodes_gdf2['flow'] = nodes_gdf2['Node'].apply(lambda n: newflow[n])
+    for keys, val in flow.items():
+        for key in keys:
+            try:
+                newflow[key] += val
+            except:
+                newflow[key] = val
+    
+    def lab(x):
+        return newflow[x]
+    
+    nodes_gdf2.loc[:, 'flow'] = nodes_gdf2.loc[:, 'Node'].apply(lab)
     
     return nodes_gdf2
+
 
 def node_betweenness_centrality(flow, nodes_gdf, od):
     '''

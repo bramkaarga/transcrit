@@ -37,8 +37,8 @@ def is_endpoint(G, node, strict=True):
     d = G.degree(node)
 
     try:
-        penalty = G.node[node].get('penalty')
-    except:
+        penalty = G.node[node]['penalty']
+    except KeyError:
         penalty = 0
 
     if penalty > 0:

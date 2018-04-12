@@ -89,6 +89,7 @@ def prepare_centroids_network2(centroids, network, net_from='', net_to=''):
     gdf_node_pos['osmid'] = gdf_node_pos.index
 
     centroid_points = {}
+    points = []
     for n, centroid in enumerate(centroids):
     
         #read the centroid shapefile into geodataframe
@@ -105,6 +106,7 @@ def prepare_centroids_network2(centroids, network, net_from='', net_to=''):
         nodes = gdf_points['Node'].tolist()
         numbers = [n+1] * len(nodes)
         centroid_points.update(dict(zip(nodes, numbers)))
+        points.append(gdf_points)
         
         
     gdf_node_pos['IsCentroid'] = gdf_node_pos.Node.apply(lambda g: centroid_points[g] if g in centroid_points.keys() else 0)
@@ -119,7 +121,7 @@ def prepare_centroids_network2(centroids, network, net_from='', net_to=''):
     #create unique osmid for the network LineString GeoDataFrame
     gdf['osmid'] = gdf.index.map(lambda x: x + 10000)
 
-    return gdf_points, gdf_node_pos, gdf
+    return points, gdf_node_pos, gdf
            
            
 def prepare_gdf_network(network):
@@ -294,8 +296,9 @@ def gdf_to_simplified_multidigraph(gdf_node_pos, gdf, undirected = True):
     #based on the FNODE and TNODE information of the transport network GeoDataFrame
     for index, row in gdf.iterrows():
         dict_row  = row.to_dict()
-        if 'geometry' in dict_row: del dict_row['geometry']
-        G2.add_edge(u=dict_row['FNODE_'], v=dict_row['TNODE_'], **dict_row)
+        if 'geometry' in dict_row: 
+            del dict_row['geometry']
+        G2.add_edge(dict_row['FNODE_'], dict_row['TNODE_'], **dict_row)
 
     #simplify the MultiDiGraph using OSMNX's overwritten function
     #there should be no NaN values in the geodataframe, else it will return an error
@@ -308,7 +311,8 @@ def gdf_to_simplified_multidigraph(gdf_node_pos, gdf, undirected = True):
         G2 = G2.to_undirected()
     return G2
 
-def multigraph_to_graph(G):
+
+def multigraph_to_graph(digraph):
     '''
     Change Multi(Di)Graph object to Graph. Graph is undirected, simple graph type without parallel edges
     (while Multi(Di)Graph may have parallel edges). This code removes duplicate edges.
@@ -324,38 +328,31 @@ def multigraph_to_graph(G):
         Graph Networkx object
     '''
 
-    #create arbitrary Graph object
-    G2_new_tograph = nx.Graph()
-
-    #create dummy Graph as a mean to indicate duplicated edges
-    G_dummy = nx.Graph()
+    #create empty Graph object
+    graph = nx.Graph()
 
     #transform the nodes into Graph, preserving all attributes
-    for u,v in G.nodes(data=True):
-        G2_new_tograph.add_node(u, **v)
-        G_dummy.add_node(u, **v)
+    for u,v in digraph.nodes(data=True):
+        graph.add_node(u, **v)
 
     #transform the edges into Graph, preserving all attributes
-    c = []
-    for u,v,data in G.edges(data=True):
-        d = (u,v)
+    c = set()
+    for u, v, data in digraph.edges(data=True):
+        d = (u, v)
         #check if the edge that connects (u,v) exists in the graph
-        if not d in c:
-            G2_new_tograph.add_edge(u,v,**data)
-            G_dummy.add_edge(u,v,**data)
-            c.append(d)
-        #else replace the old edge with the new edge if the new edge has longer length
+        
+        if d in c:
+            # replace the old edge with the new edge if 
+            # the new edge has longer length
+            edge = graph.edges[u,v]
+            if data['length'] > edge['length']:
+                graph.remove_edge(u,v)
+                graph.add_edge(u,v,**data)
         else:
-            for edge in G_dummy.edges(data=True):
-                e = (edge[0], edge[1])
-                if e == d:
-                    if data['length'] > edge[2]['length']:
-                        G2_new_tograph.remove_edge(u,v)
-                        G2_new_tograph.add_edge(u,v,**data)
-                        G_dummy.remove_edge(u,v)
-                        G_dummy.add_edge(u,v,**data)
+            graph.add_edge(u,v,**data)
+            c.add(d)
 
-    return G2_new_tograph
+    return graph
 
 def graph_to_df(G2_simplified):
     '''

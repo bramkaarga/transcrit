@@ -20,6 +20,8 @@ import seaborn as sns
 from scipy.stats import gaussian_kde
 import scipy
 
+from math import floor, ceil
+
 __all__ = ['plot_network_admcolmap_betweenness',
            'plot_socioeconomic_attribute',
            'truncate_colormap',
@@ -30,6 +32,17 @@ __all__ = ['plot_network_admcolmap_betweenness',
            'overlap_distribution',
            'correlation_plot',
            'two_correlation_plot']
+
+
+
+
+def rounddown(n, d=2):
+    d = int('1' + ('0' * d))
+    return floor(n * d) / d
+
+def roundup(n, d=2):
+    d = int('1' + ('0' * d))
+    return ceil(n * d) / d
 
 def plot_network_admcolmap_betweenness(gdf,gdf2, colname,betweenness_string,
                                        cmap='OrRd', linewidth=1.25, edgecolor='grey',
@@ -68,10 +81,11 @@ def plot_network_admcolmap_betweenness(gdf,gdf2, colname,betweenness_string,
     columnlist = list(gdf[colname])
     columnlist.append(0)
     columnlist.append(maxpop) #hardcoded, not good
-    cbmin, cbmax = min(columnlist), max(columnlist)
+    cbmin, cbmax = rounddown(min(columnlist), 2), roundup(max(columnlist))
     sm.set_array(columnlist)
     cb = plt.colorbar(sm, cax=cax, label = colname, alpha=0.3)
     labels = [0, cbmax/4, cbmax/4*2, cbmax/4*3, cbmax/4*4]
+    labels = [round(entry) for entry in labels]
     loc = labels
     cb.set_ticks(loc)
     cb.set_ticklabels(labels)
@@ -254,10 +268,11 @@ def plot_network_admcolmap_betweenness_new(gdf, gdf2, colname, criticality_strin
     columnlist = list(gdf[colname])
     columnlist.append(0)
     columnlist.append(maxpop) #hardcoded, not good
-    cbmin, cbmax = min(columnlist), max(columnlist)
+    cbmin, cbmax = rounddown(min(columnlist)), roundup(max(columnlist))
     sm.set_array(columnlist)
     cb = plt.colorbar(sm, cax=cax, label = colname, alpha=0.3)
     labels = [0, cbmax/4, cbmax/4*2, cbmax/4*3, cbmax/4*4]
+    labels = [round(e) for e in labels]
     loc = labels
     cb.set_ticks(loc)
     cb.set_ticklabels(labels)
@@ -267,20 +282,18 @@ def plot_network_admcolmap_betweenness_new(gdf, gdf2, colname, criticality_strin
     #add colorbar2
     fig = ax.get_figure()
     cax = fig.add_axes([0.7, 0.45, 0.02, 0.43])
-    sm = plt.cm.ScalarMappable(cmap=cmap)
-    columnlist = list(gdf2[criticality_string])
-#     columnlist.append(0)
-    columnlist.append(maxcrit)
-    cbmin, cbmax = min(columnlist), max(columnlist)
-#     cbmin, cbmax = round(cbmin,3), round(cbmax,3)
-    sm.set_array(columnlist)
+
+    criticality_scores = list(gdf2[criticality_string])
+    # criticality_scores.append(maxcrit)
+    cbmin, cbmax = rounddown(min(criticality_scores)), roundup(max(criticality_scores))
+    norm = matplotlib.colors.Normalize(vmin=cbmin, vmax=cbmax) 
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array(criticality_scores)
     cb = plt.colorbar(sm, cax=cax, label=criticality_string)
-    poin1 = cbmin+(cbmax-cbmin)/4
-    poin2 = cbmin+(cbmax-cbmin)/4*2
-    poin3 = cbmin+(cbmax-cbmin)/4*3
-    labels = [cbmin, poin1, poin2, poin3, cbmax]
+    labels = np.linspace(cbmin, cbmax, 5)
     loc = labels
     cb.set_ticks(loc)
+    labels = ['{:.2g}'.format(e) for e in labels]
     cb.set_ticklabels(labels)
     cb.ax.yaxis.label.set_font_properties(matplotlib.font_manager.FontProperties(size=16))
     cb.ax.tick_params(labelsize=16)
@@ -291,7 +304,8 @@ def _log_base_n(x,logn):
     except:
         return 0
 
-def plot_od_heatmap(OD_df, gdf_points, log=False, logn=100, division=False):
+def plot_od_heatmap(OD_df, gdf_points, log=False, logn=100, division=False, keyword='District',
+                    cbmax=None, cbmin=None, cblabel=None, cblegend=False):
 
     #adopted from http://nbviewer.jupyter.org/gist/joelotz/5427209
 
@@ -301,7 +315,7 @@ def plot_od_heatmap(OD_df, gdf_points, log=False, logn=100, division=False):
         OD_df = OD_df.applymap(lambda x: _log_base_n(x, logn))
 
     # Plot it out
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(12,9))
 
     #if we don't want to aggregate to division level
     if not division:
@@ -318,16 +332,16 @@ def plot_od_heatmap(OD_df, gdf_points, log=False, logn=100, division=False):
         ax.set_frame_on(False)
 
         # put the major ticks at the middle of each cell
-        ax.set_yticks(np.arange(OD_df.shape[0])+0.5, minor=False)
-        ax.set_xticks(np.arange(OD_df.shape[1])+0.5, minor=False)
+        ax.set_yticks(np.arange(OD_df.shape[0])+0.5, minor=False) #old: gdf_points.District
+        ax.set_xticks(np.arange(OD_df.shape[1])+0.5, minor=False) #old: gdf_points.District
 
         # want a more natural, table-like display
         ax.invert_yaxis()
         ax.xaxis.tick_top()
 
         # Set the labels
-        ax.set_xticklabels(gdf_points.District, minor=False)
-        ax.set_yticklabels(gdf_points.District, minor=False)
+        ax.set_xticklabels(sorted(set(gdf_points[keyword])), minor=False)
+        ax.set_yticklabels(sorted(set(gdf_points[keyword])), minor=False)
 
     #if we want to aggregate to division level
     else:
@@ -374,7 +388,7 @@ def plot_od_heatmap(OD_df, gdf_points, log=False, logn=100, division=False):
     plt.ylabel('From', fontsize=18)
 
     ax.grid(False)
-
+    
     # Turn off all the ticks
     ax = plt.gca()
 
@@ -384,18 +398,39 @@ def plot_od_heatmap(OD_df, gdf_points, log=False, logn=100, division=False):
     for t in ax.yaxis.get_major_ticks():
         t.tick1On = False
         t.tick2On = False
+    
+    #add colorbar2
+    if cblegend:
+        fig = ax.get_figure()
+        axes_pos = [0.93, 0.45, 0.02, 0.43]
+        cax = fig.add_axes(axes_pos)
+        sm = plt.cm.ScalarMappable(cmap=plt.cm.Blues)
+        if not cbmin:
+            cbmin = OD_df.min().min()
+        if not cbmax:
+            cbmax = OD_df.max().max()
+        poin1 = cbmin+(cbmax-cbmin)/4
+        poin2 = cbmin+(cbmax-cbmin)/4*2
+        poin3 = cbmin+(cbmax-cbmin)/4*3
+        labels = [cbmin, poin1, poin2, poin3, cbmax]
+        sm.set_array(labels)
+        cb = plt.colorbar(sm, cax=cax)
+        loc = labels
+        cb.set_ticks(loc)
+        cb.set_ticklabels(labels)
+        if cblabel:
+            cb.set_label(label=cblabel, fontsize=20)
+        cb.ax.tick_params(labelsize=16)
 
 def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxvals=[0,0], minvals=[],
                             linewidth=1.25, edgecolor='grey', perc1=60, perc2=90,
-                            modes=['road', 'water']):
+                            modes=['road', 'water'], lw1=2, lw2=3, colname_unit=None):
     
     fig, ax = plt.subplots(figsize=(12,9))
 
     ax.set_aspect('equal')
 
     cmap_pos = [0.72, 0.45, 0.02, 0.43]
-    
-    ax.set_title(colname)
     
     gdf3 = gdf2.copy()
     gdf3.sort_values(by='mode', inplace=True)
@@ -414,7 +449,7 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
         #add colorbar2
         fig = ax.get_figure()
         axes_pos = cmap_pos
-        axes_pos[0] = axes_pos[0] + (0.1*i)
+        axes_pos[0] = axes_pos[0] + (0.12*i)
         cax = fig.add_axes(axes_pos)
         sm = plt.cm.ScalarMappable(cmap=cmaps[i])
         columnlist = list(gdf_mode[betweenness_string])
@@ -429,7 +464,7 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
             pass
         cbmin, cbmax = min(columnlist), max(columnlist)
         sm.set_array(columnlist)
-        cb = plt.colorbar(sm, cax=cax, label=betweenness_string)
+        cb = plt.colorbar(sm, cax=cax)
         poin1 = cbmin+(cbmax-cbmin)/4
         poin2 = cbmin+(cbmax-cbmin)/4*2
         poin3 = cbmin+(cbmax-cbmin)/4*3
@@ -437,27 +472,24 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
         loc = labels
         cb.set_ticks(loc)
         cb.set_ticklabels(labels)
+        
+        if i == len(modes)-1:
+            if colname_unit:
+                cb.set_label(label=betweenness_string+' (' + colname_unit + ')', fontsize=16)
+            else:
+                cb.set_label(label=betweenness_string, fontsize=16)
         cb.ax.tick_params(labelsize=16)
 
-    try:
         thres1 = _get_percentile(gdf3, betweenness_string, perc1)
-    except:
-        thres1 = 99999
-    try:
         thres2 = _get_percentile(gdf3, betweenness_string, perc2)
-    except:
-        thres2 = 999999
-
-    #adjust linewidth based on betweenness
-    betweenness_list = list(gdf3[betweenness_string])
-    #change the linewidth based on the percentile
-    betweenness_list = [1 if x < thres1 else 2 if x >= thres1 and x < thres2 else 3 for x in betweenness_list]
-    j = 0
-    for ln in ax.lines:
-        ln.set_linewidth(betweenness_list[j]*1)
-        if betweenness_list[j]*1 > 1:
-            c +=1
-        j +=1
+        
+        #adjust linewidth based on betweenness
+        betweenness_list = list(gdf_mode[betweenness_string])
+        #change the linewidth based on the percentile
+        betweenness_list = [1 if x < thres1 else lw1 if x >= thres1 and x < thres2 else lw2 for x in betweenness_list]
+        for _, ln in enumerate(ax.collections):
+            if _ == i:
+                ln.set_linewidth(betweenness_list)
         
     valmin2 = min(list(gdf[colname]))
     valmax2 = max(list(gdf[colname]))
@@ -757,7 +789,7 @@ def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, mi
     axes_pos = cmap_pos
     axes_pos[0] = axes_pos[0]
     cax = fig.add_axes(axes_pos)
-    sm = plt.cm.ScalarMappable(cmap=cmap)
+    
     columnlist = list(nodes2['centrality'])
     maxbetweenness = max(columnlist)
     try:
@@ -768,15 +800,17 @@ def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, mi
         columnlist.append(minval)
     except:
         pass
-    cbmin, cbmax = min(columnlist), max(columnlist)
+    
+    cbmin, cbmax = rounddown(min(columnlist)), roundup(max(columnlist))
+    norm = matplotlib.colors.Normalize(vmin=cbmin, vmax=cbmax) 
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array(columnlist)
     cb = plt.colorbar(sm, cax=cax, label='Nodes centrality')
-    poin1 = cbmin+(cbmax-cbmin)/4
-    poin2 = cbmin+(cbmax-cbmin)/4*2
-    poin3 = cbmin+(cbmax-cbmin)/4*3
-    labels = [cbmin, poin1, poin2, poin3, cbmax]
+    labels = np.linspace(cbmin, cbmax, 5)
+
     loc = labels
     cb.set_ticks(loc)
+    labels = ['{:.2g}'.format(e) for e in labels]
     cb.set_ticklabels(labels)
     cb.ax.tick_params(labelsize=16)
         
