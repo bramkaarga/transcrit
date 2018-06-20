@@ -51,8 +51,8 @@ def plot_network_admcolmap_betweenness(gdf,gdf2, colname,betweenness_string,
 
     ax.set_aspect('equal')
 
-    valmin1 = min(list(gdf2[betweenness_string]))
-    valmax1 = max(list(gdf2[betweenness_string]))
+    valmin1 = np.min(list(gdf2[betweenness_string]))
+    valmax1 = np.max(list(gdf2[betweenness_string]))
     gdf2.plot(ax=ax, column=betweenness_string, cmap=cmap,vmin=valmin1, vmax=valmax1, linewidth=linewidth)
 
     #adjust linewidth based on betweenness
@@ -66,8 +66,8 @@ def plot_network_admcolmap_betweenness(gdf,gdf2, colname,betweenness_string,
         ln.set_linewidth(betweenness_list[i])
         i +=1
 
-    valmin2 = min(list(gdf[colname]))
-    valmax2 = max(list(gdf[colname]))
+    valmin2 = np.min(list(gdf[colname]))
+    valmax2 = np.max(list(gdf[colname]))
     gdf.plot(ax=ax, column=colname, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, edgecolor=edgecolor, alpha=0.3)
 
     ax.set_title(colname)
@@ -81,7 +81,7 @@ def plot_network_admcolmap_betweenness(gdf,gdf2, colname,betweenness_string,
     columnlist = list(gdf[colname])
     columnlist.append(0)
     columnlist.append(maxpop) #hardcoded, not good
-    cbmin, cbmax = rounddown(min(columnlist), 2), roundup(max(columnlist))
+    cbmin, cbmax = rounddown(np.min(columnlist), 2), roundup(np.max(columnlist))
     sm.set_array(columnlist)
     cb = plt.colorbar(sm, cax=cax, label = colname, alpha=0.3)
     labels = [0, cbmax/4, cbmax/4*2, cbmax/4*3, cbmax/4*4]
@@ -99,7 +99,7 @@ def plot_network_admcolmap_betweenness(gdf,gdf2, colname,betweenness_string,
     columnlist = list(gdf2[betweenness_string])
     columnlist.append(0)
     columnlist.append(maxbetweenness)
-    cbmin, cbmax = min(columnlist), max(columnlist)
+    cbmin, cbmax = np.min(columnlist), np.max(columnlist)
     cbmin, cbmax = round(cbmin,3), round(cbmax,3)
     sm.set_array(columnlist)
     cb = plt.colorbar(sm, cax=cax, label=betweenness_string)
@@ -135,13 +135,13 @@ def plot_socioeconomic_attribute(gdf, colname,cmap='OrRd', linewidth=1.25, edgec
     '''
 
 
-    print('maximum number of '+colname+' is',max(list(gdf[colname])))
+    print('maximum number of '+colname+' is',np.max(list(gdf[colname])))
     fig, ax = plt.subplots(figsize=(12,9))
 
     ax.set_aspect('equal')
 
-    valmin2 = min(list(gdf[colname]))
-    valmax2 = max(list(gdf[colname]))
+    valmin2 = np.min(list(gdf[colname]))
+    valmax2 = np.max(list(gdf[colname]))
     gdf.plot(ax=ax, column=colname, cmap=cmap,vmin=valmin2, vmax=valmax2, linewidth=0.5, edgecolor=edgecolor, alpha=0.3)
 
     ax.set_title(colname)
@@ -156,7 +156,7 @@ def plot_socioeconomic_attribute(gdf, colname,cmap='OrRd', linewidth=1.25, edgec
     columnlist = list(gdf[colname])
     columnlist.append(0)
     columnlist.append(maxpop)
-    cbmin, cbmax = min(columnlist), max(columnlist)
+    cbmin, cbmax = np.min(columnlist), np.max(columnlist)
     sm.set_array(columnlist)
     cb = plt.colorbar(sm, cax=cax, label = colname, alpha=0.3)
     labels = [0, cbmax/4, cbmax/4*2, cbmax/4*3, cbmax/4*4]
@@ -237,8 +237,8 @@ def plot_network_admcolmap_betweenness_new(gdf, gdf2, colname, criticality_strin
 
     ax.set_aspect('equal')
 
-    valmin1 = min(list(gdf2[criticality_string]))
-    valmax1 = max(list(gdf2[criticality_string]))
+    valmin1 = np.min(list(gdf2[criticality_string]))
+    valmax1 = np.max(list(gdf2[criticality_string]))
     thres1 = _get_percentile(gdf2, criticality_string, perc1)
     thres2 = _get_percentile(gdf2, criticality_string, perc2)
 
@@ -253,8 +253,8 @@ def plot_network_admcolmap_betweenness_new(gdf, gdf2, colname, criticality_strin
         ln.set_linewidth(betweenness_list[i]*1)
         i +=1
 
-    valmin2 = min(list(gdf[colname]))
-    valmax2 = max(list(gdf[colname]))
+    valmin2 = np.min(list(gdf[colname]))
+    valmax2 = np.max(list(gdf[colname]))
     gdf.plot(ax=ax, column=colname, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, edgecolor=edgecolor, alpha=0.3)
 
     ax.set_title(colname)
@@ -268,7 +268,7 @@ def plot_network_admcolmap_betweenness_new(gdf, gdf2, colname, criticality_strin
     columnlist = list(gdf[colname])
     columnlist.append(0)
     columnlist.append(maxpop) #hardcoded, not good
-    cbmin, cbmax = rounddown(min(columnlist)), roundup(max(columnlist))
+    cbmin, cbmax = rounddown(np.min(columnlist)), roundup(np.max(columnlist))
     sm.set_array(columnlist)
     cb = plt.colorbar(sm, cax=cax, label = colname, alpha=0.3)
     labels = [0, cbmax/4, cbmax/4*2, cbmax/4*3, cbmax/4*4]
@@ -285,7 +285,7 @@ def plot_network_admcolmap_betweenness_new(gdf, gdf2, colname, criticality_strin
 
     criticality_scores = list(gdf2[criticality_string])
     # criticality_scores.append(maxcrit)
-    cbmin, cbmax = rounddown(min(criticality_scores)), roundup(max(criticality_scores))
+    cbmin, cbmax = rounddown(np.min(criticality_scores)), roundup(np.max(criticality_scores))
     norm = matplotlib.colors.Normalize(vmin=cbmin, vmax=cbmax) 
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array(criticality_scores)
@@ -441,8 +441,8 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
         
         gdf_mode = gdf3.loc[gdf3['mode']==mode]
 
-        valmin1 = min(list(gdf_mode[betweenness_string]))
-        valmax1 = max(list(gdf_mode[betweenness_string]))
+        valmin1 = np.min(list(gdf_mode[betweenness_string]))
+        valmax1 = np.max(list(gdf_mode[betweenness_string]))
         
         gdf_mode.plot(ax=ax, column=betweenness_string, cmap=cmaps[i], vmin=valmin1, vmax=valmax1, linewidth=linewidth)
         
@@ -453,7 +453,7 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
         cax = fig.add_axes(axes_pos)
         sm = plt.cm.ScalarMappable(cmap=cmaps[i])
         columnlist = list(gdf_mode[betweenness_string])
-        maxbetweenness = max(columnlist)
+        maxbetweenness = np.max(columnlist)
         try:
             columnlist.append(maxvals[i])
         except:
@@ -462,7 +462,7 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
             columnlist.append(minvals[i])
         except:
             pass
-        cbmin, cbmax = min(columnlist), max(columnlist)
+        cbmin, cbmax = np.min(columnlist), np.max(columnlist)
         sm.set_array(columnlist)
         cb = plt.colorbar(sm, cax=cax)
         poin1 = cbmin+(cbmax-cbmin)/4
@@ -491,8 +491,8 @@ def plot_network_multimodal(gdf, gdf2, colname,betweenness_string, cmaps, maxval
             if _ == i:
                 ln.set_linewidth(betweenness_list)
         
-    valmin2 = min(list(gdf[colname]))
-    valmax2 = max(list(gdf[colname]))
+    valmin2 = np.min(list(gdf[colname]))
+    valmax2 = np.max(list(gdf[colname]))
     gdf.plot(ax=ax, column=colname, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, edgecolor=edgecolor, alpha=0.3)
     
     ax.axis('off')
@@ -537,8 +537,8 @@ def plot_interactive(rank, metric, show_division, result_gdf, cmaps, district_gd
         
         gdf_mode = gdf3.loc[gdf3['mode']==mode]
 
-        valmin1 = min(list(gdf_mode[metric]))
-        valmax1 = max(list(gdf_mode[metric]))
+        valmin1 = np.min(list(gdf_mode[metric]))
+        valmax1 = np.max(list(gdf_mode[metric]))
 
         gdf_mode.plot(ax=ax, column=metric, cmap=cmaps[i], vmin=valmin1, vmax=valmax1, linewidth=linewidth)
         
@@ -791,7 +791,7 @@ def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, mi
     cax = fig.add_axes(axes_pos)
     
     columnlist = list(nodes2['centrality'])
-    maxbetweenness = max(columnlist)
+    maxbetweenness = np.max(columnlist)
     try:
         columnlist.append(maxval)
     except:
@@ -801,7 +801,7 @@ def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, mi
     except:
         pass
     
-    cbmin, cbmax = rounddown(min(columnlist)), roundup(max(columnlist))
+    cbmin, cbmax = rounddown(np.min(columnlist)), roundup(np.max(columnlist))
     norm = matplotlib.colors.Normalize(vmin=cbmin, vmax=cbmax) 
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array(columnlist)
@@ -814,8 +814,8 @@ def plot_nodes_multimodal(background, links, nodes, back_col, cmap, maxval=0, mi
     cb.set_ticklabels(labels)
     cb.ax.tick_params(labelsize=16)
         
-    valmin2 = min(list(background[back_col]))
-    valmax2 = max(list(background[back_col]))
+    valmin2 = np.min(list(background[back_col]))
+    valmax2 = np.max(list(background[back_col]))
     background.plot(ax=ax, column=back_col, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, 
                     edgecolor=edgecolor, alpha=0.2)
     
@@ -865,8 +865,8 @@ def plot_centroids(background, links, nodes, back_col, c_val,
         
     
     #draw background    
-    valmin2 = min(list(background[back_col]))
-    valmax2 = max(list(background[back_col]))
+    valmin2 = np.min(list(background[back_col]))
+    valmax2 = np.max(list(background[back_col]))
     background.plot(ax=ax, column=back_col, cmap='Greys',vmin=valmin2, vmax=valmax2, linewidth=0.5, 
                     edgecolor=edgecolor, alpha=1)
     

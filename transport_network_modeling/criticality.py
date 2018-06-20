@@ -89,7 +89,7 @@ def aon_assignment(G, sources, targets, weight, od):
     '''
 
     #create empty dict
-    d={}
+    d = collections.defaultdict(float)
 
     #iterate over all sources
     for i in range(len(sources)):
@@ -108,10 +108,11 @@ def aon_assignment(G, sources, targets, weight, od):
                     lst = [sp_dijk_all[j],sp_dijk_all[j+1]]
                     lst = [min(lst), max(lst)]
                     tup = tuple(lst)
-                    if tup in d.keys():
-                        d[tup]+=1*flow
-                    else:
-                        d.update({tup:1*flow})
+                    d[tup] += flow
+                    #if tup in d.keys():
+                    #    d[tup]+=1*flow
+                    #else:
+                    #    d.update({tup:1*flow})
 
     #assign 0 to all edges which don't belong to any shortest path
     #at the same time, record all the correct order of edges name
@@ -240,15 +241,18 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
 
         #if work with penalty, update the weight of the links which belong to the shortest paths
         if penalty:
-            penalty_dict = {}
-            for u, v,data in G1.edges(data=True):
-                if tuple([u,v]) in penalty_set:
-                    length = data[weight] * penalty
-                else:
-                    length = data[weight]
-                penalty_dict[tuple([u,v])] = length
+            for uv in penalty_set:
+                G1[uv[0]][uv[1]][weight] *= penalty
+        
+            penalty_dict = {}            
+            #for u, v,data in G1.edges(data=True):
+            #    if tuple([u,v]) in penalty_set:
+            #        length = data[weight] * penalty
+            #    else:
+            #        length = data[weight]
+            #    penalty_dict[tuple([u,v])] = length
 
-            nx.set_edge_attributes(G1, name=weight, values=penalty_dict)
+            #nx.set_edge_attributes(G1, name=weight, values=penalty_dict)
 
     #assign 0 to all edges which don't belong to any shortest path
     #at the same time, record all the correct order of edges name

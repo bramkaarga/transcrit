@@ -209,10 +209,9 @@ def dist_deterrence(distance):
     #distance is a n x n DataFrame of euclidean distance between all centroids
     distance = distance*distance
     distance = 100000/distance
-    for i in list(distance.columns):
-        for j in list(distance.index.values):
-            if distance[i][j] > 9999999:
-                distance[i][j] = 0
+    for col in distance.columns:
+        a = np.array(distance[col].values.tolist())
+        distance[col] = np.where(a > 9999999, 0, a).tolist()
     return distance
 
 def district_stats_to_OD_df(gdf_points, prod_driver, attr_driver='Population_x', deterrence=dist_deterrence, mult=False):
@@ -255,10 +254,9 @@ def district_stats_to_OD_df(gdf_points, prod_driver, attr_driver='Population_x',
     OD_matrix = pd.DataFrame(Trips1, index=nodelist, columns=nodelist)
 
     #avoid extremely small number in the flow
-    for i, row in OD_matrix.iterrows():
-        for j,val in row.iteritems():
-            if OD_matrix[i][j] < 0.1:
-                OD_matrix[i][j] = 0
+    for col in OD_matrix.columns:
+        a = np.array(OD_matrix[col].values.tolist())
+        OD_matrix[col] = np.where(a < 0.1, 0, a).tolist()
 
     return OD_matrix
 
