@@ -223,7 +223,7 @@ def probit_assignment(G, sources, targets, weight, od, N=5, sd=10, penalty=0):
 
 
                 #update the betweenness value of all edges in the shortest path
-                flow = od.ix[source, target]
+                flow = od.iloc[source, target] #change iloc instead of ix
                 
                 #divide the flow over the number of iteration
                 flow = flow/N
@@ -1183,13 +1183,13 @@ def _weighted_accessibility(G, centroid, targets, flow, weight, beta=0.5):
         for target in targets:
             if target != centroid:
                 dist = nx.dijkstra_path_length(G=G, source=centroid, target=target, weight=weight)
-                a_val = (flow.ix[centroid] * flow.ix[target])/(dist**beta)
+                a_val = (flow.iloc[centroid] * flow.iloc[target])/(dist**beta) #change iloc instead of ix
                 a = a_val
                 acc = a.flow
                 acc_dict.update({target:acc})
     else:
         dist = nx.dijkstra_path_length(G=G, source=centroid, target=targets, weight=weight)
-        a_val = (flow.ix[centroid] * flow.ix[targets])/(dist**beta)
+        a_val = (flow.iloc[centroid] * flow.iloc[targets])/(dist**beta) #change iloc instead of ix
         a = a_val
         acc_dict = a.flow
             

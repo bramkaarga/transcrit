@@ -625,7 +625,7 @@ def overlap_distribution(crit_df, all_metric, save=False, alls=True, name='fig.j
     plt.draw()
     plt.show()
 	
-def correlation_plot(df, title='', center=None, vmin=None, vmax=None, save=False, filename=''):
+def correlation_plot(df, title='', center=None, vmin=None, vmax=None, save=False, filename='', cmap='YlOrRd'):
     sns.set(style="white", font_scale=1.5)
 #     sns.set(font_scale=1.3)
 
@@ -637,7 +637,7 @@ def correlation_plot(df, title='', center=None, vmin=None, vmax=None, save=False
     f, ax = plt.subplots(figsize=(12, 12))
 
     # Draw the heatmap using seaborn
-    sns.heatmap(df, mask=mask, square=True,
+    sns.heatmap(df, mask=mask, square=True, cmap=cmap,
                 linewidths=.5, cbar_kws={"shrink": .8}, ax=ax, annot=True,
                center=center, vmin=vmin, vmax=vmax, annot_kws={"size":12})
 
