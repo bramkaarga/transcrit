@@ -1,5 +1,8 @@
 # Transport Network Criticality Analysis
-#### Repository of transport network modeling and criticality analysis Python library, along with documentation of a thesis entitled: "Measuring freight transport network criticality: A case study in Bangladesh"
+#### Repository of transport network modeling and criticality analysis Python library, along with documentation of a thesis entitled: "Measuring freight transport network criticality: A case study in Bangladesh".
+
+#### This work is also used to support analysis in paper "Transport network criticality metrics: a comparative analysis and a guideline for selection". The paper is open access: https://doi.org/10.1080/01441647.2019.1703843
+
 #### Author: Bramka Arga Jafino (B.A.Jafino@tudelft.nl)
 #### PhD researcher at the Faculty of Technology, Policy, and Management, Delft University of Technology, The Netherlands 
 
